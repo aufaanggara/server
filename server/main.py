@@ -4,9 +4,11 @@ import random
 
 app = FastAPI()
 
+
 @app.get("/")
 def root():
     return {"status": "server running"}
+
 
 @app.post("/process")
 def process_request(worker_id: int = 0):
@@ -15,5 +17,5 @@ def process_request(worker_id: int = 0):
     return {
         "worker_id": worker_id,
         "service_time": round(service_time, 4),
-        "status": "processed"
+        "status": "processed",
     }
