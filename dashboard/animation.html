@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Animasi Antrian Server</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #0e1117;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+    h2 {
+      margin: 16px 0 4px;
+      font-size: 18px;
+      color: #fff;
+    }
+    p {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    #controls {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    label { font-size: 13px; color: #ccc; }
+    select, input[type=range] { cursor: pointer; }
+    button {
+      padding: 6px 16px;
+      background: #ff4b4b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #e03030; }
+  </style>
+</head>
+<body>
+  <h2>🖥️ Animasi Stokastik Sistem Antrian Server</h2>
+  <p>Distribusi Poisson & Eksponensial — Load Balancing Visualization</p>
+
+  <div id="controls">
+    <label>λ (req/s): <input type="range" id="lambdaSlider" min="0.5" max="5" step="0.5" value="2">
+      <span id="lambdaVal">2</span>
+    </label>
+    <label>Workers: <input type="range" id="workerSlider" min="1" max="5" step="1" value="3">
+      <span id="workerVal">3</span>
+    </label>
+    <label>Algoritma:
+      <select id="algoSelect">
+        <option value="round_robin">Round Robin</option>
+        <option value="random">Random</option>
+        <option value="least_connection">Least Connection</option>
+      </select>
+    </label>
+    <button onclick="resetSim()">⟳ Reset</button>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    // Konfigurasi
+    let lambdaRate = 2;
+    let numWorkers = 3;
+    let algorithm = "round_robin";
+
+    // State
+    let packets = [];
+    let workers = [];
+    let stats = { total: 0, processed: 0 };
+    let nextPacketTime = 0;
+    let requestId = 0;
+
+    document.getElementById("lambdaSlider").oninput = function() {
+      lambdaRate = parseFloat(this.value);
+      document.getElementById("lambdaVal").innerText = this.value;
+    };
+    document.getElementById("workerSlider").oninput = function() {
+      numWorkers = parseInt(this.value);
+      document.getElementById("workerVal").innerText = this.value;
+      initWorkers();
+    };
+    document.getElementById("algoSelect").onchange = function() {
+      algorithm = this.value;
+    };
+
+    function resetSim() {
+      packets = [];
+      stats = { total: 0, processed: 0 };
+      requestId = 0;
+      initWorkers();
+    }
+
+    function initWorkers() {
+      workers = [];
+      for (let i = 0; i < numWorkers; i++) {
+        workers.push({ id: i, queue: 0, busy: false, busyTimer: 0 });
+      }
+    }
+
+    function selectWorker() {
+      if (algorithm === "round_robin") {
+        return requestId % numWorkers;
+      } else if (algorithm === "random") {
+        return Math.floor(Math.random() * numWorkers);
+      } else if (algorithm === "least_connection") {
+        let min = workers[0].queue;
+        let idx = 0;
+        for (let i = 1; i < workers.length; i++) {
+          if (workers[i].queue < min) { min = workers[i].queue; idx = i; }
+        }
+        return idx;
+      }
+      return 0;
+    }
+
+    function workerColor(w) {
+      let load = w.queue;
+      if (load === 0) return [46, 204, 113];       // hijau
+      else if (load <= 2) return [241, 196, 15];   // kuning
+      else return [231, 76, 60];                    // merah
+    }
+
+    new p5(function(p) {
+      let W, H;
+      let lbX, lbY;
+
+      p.setup = function() {
+        W = Math.min(window.innerWidth - 40, 800);
+        H = 420;
+        let canvas = p.createCanvas(W, H);
+        canvas.parent("canvas-container");
+        p.textFont("Arial");
+        initWorkers();
+        nextPacketTime = p.millis() + randomInterval();
+      };
+
+      function randomInterval() {
+        // Distribusi Eksponensial untuk inter-arrival time
+        return (-Math.log(Math.random()) / lambdaRate) * 1000;
+      }
+
+      function randomServiceTime() {
+        return (-Math.log(Math.random())) * 1000 * 0.8 + 600;
+      }
+
+      p.draw = function() {
+        p.background(14, 17, 23);
+
+        lbX = W * 0.18;
+        lbY = H / 2;
+
+        let workerSpacing = H / (numWorkers + 1);
+
+        // Update workers
+        for (let w of workers) {
+          if (w.busy) {
+            w.busyTimer -= p.deltaTime;
+            if (w.busyTimer <= 0) {
+              w.busy = false;
+              w.queue = Math.max(0, w.queue - 1);
+              stats.processed++;
+            }
+          }
+        }
+
+        // Spawn packet baru
+        if (p.millis() > nextPacketTime) {
+          let wid = selectWorker();
+          let wx = W * 0.72;
+          let wy = workerSpacing * (wid + 1);
+          packets.push({
+            x: 60, y: lbY,
+            tx: wx, ty: wy,
+            wid: wid,
+            phase: "toLB",  // toLB -> toWorker -> done
+            alpha: 255,
+            id: requestId
+          });
+          workers[wid].queue++;
+          if (!workers[wid].busy) {
+            workers[wid].busy = true;
+            workers[wid].busyTimer = randomServiceTime();
+          }
+          stats.total++;
+          requestId++;
+          nextPacketTime = p.millis() + randomInterval();
+        }
+
+        // Update & gambar packets
+        for (let pk of packets) {
+          if (pk.phase === "toLB") {
+            pk.x = p.lerp(pk.x, lbX, 0.08);
+            if (Math.abs(pk.x - lbX) < 5) pk.phase = "toWorker";
+          } else if (pk.phase === "toWorker") {
+            pk.x = p.lerp(pk.x, pk.tx, 0.07);
+            pk.y = p.lerp(pk.y, pk.ty, 0.07);
+            if (Math.abs(pk.x - pk.tx) < 6 && Math.abs(pk.y - pk.ty) < 6) {
+              pk.phase = "done";
+            }
+          } else if (pk.phase === "done") {
+            pk.alpha -= 8;
+          }
+
+          if (pk.alpha > 0) {
+            p.noStroke();
+            p.fill(100, 180, 255, pk.alpha);
+            p.ellipse(pk.x, pk.y, 14, 14);
+            p.fill(255, 255, 255, pk.alpha);
+            p.textSize(8);
+            p.textAlign(p.CENTER, p.CENTER);
+            p.text(pk.id, pk.x, pk.y);
+          }
+        }
+
+        // Hapus packet yang sudah fade
+        packets = packets.filter(pk => pk.alpha > 0);
+
+        // Gambar sumber request
+        p.fill(80, 120, 200);
+        p.noStroke();
+        p.rect(10, lbY - 25, 50, 50, 8);
+        p.fill(255);
+        p.textSize(9);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text("REQUEST\nGENERATOR", 35, lbY);
+
+        // Gambar Load Balancer
+        p.fill(160, 90, 220);
+        p.rect(lbX - 35, lbY - 30, 70, 60, 8);
+        p.fill(255);
+        p.textSize(9);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text("LOAD\nBALANCER", lbX, lbY - 6);
+        p.textSize(8);
+        p.fill(220, 180, 255);
+        let algoLabel = algorithm === "round_robin" ? "RR" : algorithm === "random" ? "RND" : "LC";
+        p.text(algoLabel, lbX, lbY + 14);
+
+        // Garis dari LB ke workers
+        for (let i = 0; i < numWorkers; i++) {
+          let wy = workerSpacing * (i + 1);
+          let wx = W * 0.72;
+          p.stroke(100, 100, 140, 80);
+          p.strokeWeight(1);
+          p.line(lbX + 35, lbY, wx - 40, wy);
+        }
+
+        // Gambar workers
+        for (let i = 0; i < numWorkers; i++) {
+          let w = workers[i];
+          let wx = W * 0.72;
+          let wy = workerSpacing * (i + 1);
+          let col = workerColor(w);
+
+          p.noStroke();
+          p.fill(col[0], col[1], col[2]);
+          p.rect(wx - 40, wy - 28, 80, 56, 8);
+
+          p.fill(255);
+          p.textSize(10);
+          p.textAlign(p.CENTER, p.CENTER);
+          p.text(`Worker ${i}`, wx, wy - 10);
+          p.textSize(9);
+          p.text(`Queue: ${w.queue}`, wx, wy + 6);
+          p.fill(200);
+          p.textSize(8);
+          p.text(w.busy ? "BUSY" : "IDLE", wx, wy + 20);
+        }
+
+        // Stats panel
+        p.noStroke();
+        p.fill(30, 35, 50);
+        p.rect(W * 0.83, 10, W * 0.16, 100, 8);
+        p.fill(200);
+        p.textSize(10);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text("STATS", W * 0.83 + 10, 18);
+        p.textSize(9);
+        p.fill(150, 220, 150);
+        p.text(`Total: ${stats.total}`, W * 0.83 + 10, 36);
+        p.text(`Done: ${stats.processed}`, W * 0.83 + 10, 52);
+        p.fill(200);
+        p.text(`λ = ${lambdaRate}/s`, W * 0.83 + 10, 68);
+        p.text(`Workers: ${numWorkers}`, W * 0.83 + 10, 84);
+
+        // Legend warna
+        p.noStroke();
+        p.textSize(9);
+        p.textAlign(p.LEFT, p.CENTER);
+        let lgx = 10, lgy = H - 60;
+        p.fill(46, 204, 113); p.rect(lgx, lgy, 12, 12, 3);
+        p.fill(200); p.text("Idle", lgx + 16, lgy + 6);
+        p.fill(241, 196, 15); p.rect(lgx, lgy + 18, 12, 12, 3);
+        p.fill(200); p.text("Sedang (1-2)", lgx + 16, lgy + 24);
+        p.fill(231, 76, 60); p.rect(lgx, lgy + 36, 12, 12, 3);
+        p.fill(200); p.text("Sibuk (>2)", lgx + 16, lgy + 42);
+      };
+    });
+  </script>
+</body>
+</html>
