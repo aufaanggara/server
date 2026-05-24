@@ -5,11 +5,7 @@ import plotly.express as px
 import time
 from datetime import datetime, timedelta
 
-st.set_page_config(
-    page_title="Simulasi Antrian Server",
-    page_icon="🖥️",
-    layout="wide"
-)
+st.set_page_config(page_title="Simulasi Antrian Server", page_icon="🖥️", layout="wide")
 
 # ── SIDEBAR ──────────────────────────────────────────
 st.sidebar.title("⚙️ Panel Kontrol")
@@ -17,8 +13,7 @@ st.sidebar.title("⚙️ Panel Kontrol")
 lambda_rate = st.sidebar.slider("λ — Request per detik", 0.5, 5.0, 2.0, 0.5)
 num_workers = st.sidebar.slider("Jumlah Worker", 1, 5, 3)
 algorithm = st.sidebar.selectbox(
-    "Algoritma Load Balancer",
-    ["round_robin", "random", "least_connection"]
+    "Algoritma Load Balancer", ["round_robin", "random", "least_connection"]
 )
 duration = st.sidebar.slider("Durasi Simulasi (detik)", 10, 60, 30, 10)
 mu = st.sidebar.slider("μ — Service Rate per Worker", 0.5, 3.0, 1.0, 0.5)
@@ -30,6 +25,7 @@ st.title("🖥️ Simulasi Stokastik Sistem Antrian Server")
 st.markdown("**Pemodelan & Simulasi Stokastik** — Distribusi Poisson & Eksponensial")
 st.divider()
 
+
 def select_worker(algorithm, request_id, workers_queue, num_workers):
     if algorithm == "round_robin":
         return request_id % num_workers
@@ -38,6 +34,7 @@ def select_worker(algorithm, request_id, workers_queue, num_workers):
     elif algorithm == "least_connection":
         return int(np.argmin(workers_queue))
     return request_id % num_workers
+
 
 def run_simulation(lambda_rate, num_workers, algorithm, duration, mu):
     results = []
@@ -67,15 +64,17 @@ def run_simulation(lambda_rate, num_workers, algorithm, duration, mu):
         workers_busy_until[worker_id] = finish_time
         workers_queue[worker_id] += 1
 
-        results.append({
-            "request_id": request_id,
-            "worker_id": worker_id,
-            "arrive_time": round(current_time, 4),
-            "wait_time": round(wait_time, 4),
-            "service_time": round(service_time, 4),
-            "total_time": round(wait_time + service_time, 4),
-            "timestamp": (base_time + timedelta(seconds=current_time)).isoformat()
-        })
+        results.append(
+            {
+                "request_id": request_id,
+                "worker_id": worker_id,
+                "arrive_time": round(current_time, 4),
+                "wait_time": round(wait_time, 4),
+                "service_time": round(service_time, 4),
+                "total_time": round(wait_time + service_time, 4),
+                "timestamp": (base_time + timedelta(seconds=current_time)).isoformat(),
+            }
+        )
 
         request_id += 1
 
@@ -85,12 +84,14 @@ def run_simulation(lambda_rate, num_workers, algorithm, duration, mu):
 
     return results
 
+
 def run_all_algorithms(lambda_rate, num_workers, duration, mu):
     algos = ["round_robin", "random", "least_connection"]
     all_results = {}
     for algo in algos:
         all_results[algo] = run_simulation(lambda_rate, num_workers, algo, duration, mu)
     return all_results
+
 
 if run:
     with st.spinner("Menjalankan simulasi..."):
@@ -115,33 +116,49 @@ if run:
     # Arrival timeline
     df["time_bucket"] = (df["arrive_time"] // 5) * 5
     tput_df = df.groupby("time_bucket").size().reset_index(name="count")
-    fig1 = px.line(tput_df, x="time_bucket", y="count",
-                   title="Request per 5 Detik",
-                   labels={"time_bucket": "Waktu (s)", "count": "Jumlah Request"})
+    fig1 = px.line(
+        tput_df,
+        x="time_bucket",
+        y="count",
+        title="Request per 5 Detik",
+        labels={"time_bucket": "Waktu (s)", "count": "Jumlah Request"},
+    )
     col_l.plotly_chart(fig1, use_container_width=True, key="fig1")
 
     # Distribusi service time
-    fig2 = px.histogram(df, x="service_time", nbins=20,
-                        title="Distribusi Service Time (Eksponensial)",
-                        labels={"service_time": "Service Time (s)"})
+    fig2 = px.histogram(
+        df,
+        x="service_time",
+        nbins=20,
+        title="Distribusi Service Time (Eksponensial)",
+        labels={"service_time": "Service Time (s)"},
+    )
     col_r.plotly_chart(fig2, use_container_width=True, key="fig2")
 
     col_l2, col_r2 = st.columns(2)
 
     # Beban per worker
     worker_df = df.groupby("worker_id").size().reset_index(name="requests")
-    fig3 = px.bar(worker_df, x="worker_id", y="requests",
-                  title=f"Request per Worker ({algorithm})",
-                  labels={"worker_id": "Worker ID", "requests": "Jumlah Request"},
-                  color="worker_id")
+    fig3 = px.bar(
+        worker_df,
+        x="worker_id",
+        y="requests",
+        title=f"Request per Worker ({algorithm})",
+        labels={"worker_id": "Worker ID", "requests": "Jumlah Request"},
+        color="worker_id",
+    )
     col_l2.plotly_chart(fig3, use_container_width=True, key="fig3")
 
     # Wait time per worker
     wait_df = df.groupby("worker_id")["wait_time"].mean().reset_index()
-    fig4 = px.bar(wait_df, x="worker_id", y="wait_time",
-                  title="Rata-rata Wait Time per Worker",
-                  labels={"worker_id": "Worker ID", "wait_time": "Avg Wait Time (s)"},
-                  color="worker_id")
+    fig4 = px.bar(
+        wait_df,
+        x="worker_id",
+        y="wait_time",
+        title="Rata-rata Wait Time per Worker",
+        labels={"worker_id": "Worker ID", "wait_time": "Avg Wait Time (s)"},
+        color="worker_id",
+    )
     col_r2.plotly_chart(fig4, use_container_width=True, key="fig4")
 
     st.divider()
@@ -152,20 +169,26 @@ if run:
     for algo, res in all_results.items():
         if res:
             d = pd.DataFrame(res)
-            comparison.append({
-                "Algoritma": algo,
-                "Total Request": len(d),
-                "Throughput (req/s)": round(len(d) / duration, 3),
-                "Avg Service Time (s)": round(d["service_time"].mean(), 4),
-                "Avg Wait Time (s)": round(d["wait_time"].mean(), 4),
-                "Avg Total Time (s)": round(d["total_time"].mean(), 4),
-            })
+            comparison.append(
+                {
+                    "Algoritma": algo,
+                    "Total Request": len(d),
+                    "Throughput (req/s)": round(len(d) / duration, 3),
+                    "Avg Service Time (s)": round(d["service_time"].mean(), 4),
+                    "Avg Wait Time (s)": round(d["wait_time"].mean(), 4),
+                    "Avg Total Time (s)": round(d["total_time"].mean(), 4),
+                }
+            )
     comp_df = pd.DataFrame(comparison)
     st.dataframe(comp_df, use_container_width=True)
 
-    fig5 = px.bar(comp_df, x="Algoritma", y="Throughput (req/s)",
-                  title="Perbandingan Throughput per Algoritma",
-                  color="Algoritma")
+    fig5 = px.bar(
+        comp_df,
+        x="Algoritma",
+        y="Throughput (req/s)",
+        title="Perbandingan Throughput per Algoritma",
+        color="Algoritma",
+    )
     st.plotly_chart(fig5, use_container_width=True, key="fig5")
 
     st.divider()
@@ -185,8 +208,17 @@ if run:
     # ── LOG TABEL ────────────────────────────────────
     st.subheader("📋 Log Hasil Simulasi")
     st.dataframe(
-        df[["request_id", "worker_id", "arrive_time", "wait_time", "service_time", "total_time"]],
-        use_container_width=True
+        df[
+            [
+                "request_id",
+                "worker_id",
+                "arrive_time",
+                "wait_time",
+                "service_time",
+                "total_time",
+            ]
+        ],
+        use_container_width=True,
     )
 
     # Simpan CSV
