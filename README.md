@@ -259,16 +259,7 @@ curl -X DELETE http://192.168.56.101:8000/reset
 
 ---
 
-## 👥 Anggota Kelompok
-
-| Nama | NIM |
-|---|---|
-| Muhammad Afiq Mirza Choiruzan | 24/537942/TK/59646 |
-| Muhammad Falah Aufa Anggara | (NIM) |
-
----
-
 ## 📄 Lisensi
 
-MIT License — bebas digunakan untuk keperluan pendidikan.
+MIT License.
 ```

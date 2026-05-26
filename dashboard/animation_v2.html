@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulasi Antrian Server v2</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0e1a;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      width: 100%;
+      padding: 16px 32px;
+      background: linear-gradient(90deg, #0d1b2a, #1a2a4a);
+      border-bottom: 1px solid #1e3a5f;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #64b5f6;
+      letter-spacing: 0.5px;
+    }
+    header span {
+      font-size: 12px;
+      color: #78909c;
+      margin-left: auto;
+    }
+    #controls {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #0d1422;
+      border-bottom: 1px solid #1a2a3a;
+      align-items: center;
+    }
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 120px;
+    }
+    .ctrl-group label {
+      font-size: 10px;
+      color: #78909c;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .ctrl-group .val {
+      font-size: 13px;
+      color: #64b5f6;
+      font-weight: 600;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: #64b5f6;
+      cursor: pointer;
+    }
+    select {
+      background: #1a2a3a;
+      color: #e0e0e0;
+      border: 1px solid #2a3a4a;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-group { display: flex; gap: 8px; margin-left: auto; }
+    button {
+      padding: 7px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    #btnPlay { background: #1565c0; color: #fff; }
+    #btnPlay:hover { background: #1976d2; }
+    #btnPlay.paused { background: #2e7d32; }
+    #btnReset { background: #37474f; color: #cfd8dc; }
+    #btnReset:hover { background: #455a64; }
+    #canvas-container { width: 100%; max-width: 960px; }
+    #statsBar {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      gap: 0;
+      background: #0d1422;
+      border-top: 1px solid #1a2a3a;
+    }
+    .stat-item {
+      flex: 1;
+      padding: 10px 16px;
+      border-right: 1px solid #1a2a3a;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-label { font-size: 9px; color: #546e7a; text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat-value { font-size: 20px; font-weight: 700; color: #64b5f6; }
+    .stat-sub { font-size: 10px; color: #78909c; }
+    #chartArea {
+      width: 100%;
+      max-width: 960px;
+      background: #0d1422;
+      border-top: 1px solid #1a2a3a;
+      padding: 12px 16px;
+    }
+    #chartArea canvas { width: 100% !important; }
+    .chart-title {
+      font-size: 11px;
+      color: #546e7a;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:20px">🖥️</span>
+  <h1>Simulasi Stokastik Sistem Antrian Server</h1>
+  <span>Distribusi Poisson & Eksponensial — M/M/c Queue</span>
+</header>
+
+<div id="controls">
+  <div class="ctrl-group">
+    <label>λ — Arrival Rate</label>
+    <input type="range" id="slLambda" min="0.5" max="5" step="0.5" value="2">
+    <div class="val"><span id="valLambda">2.0</span> req/s</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Workers</label>
+    <input type="range" id="slWorkers" min="1" max="5" step="1" value="3">
+    <div class="val"><span id="valWorkers">3</span> server</div>
+  </div>
+  <div class="ctrl-group">
+    <label>μ — Service Rate</label>
+    <input type="range" id="slMu" min="0.5" max="3" step="0.5" value="1">
+    <div class="val"><span id="valMu">1.0</span> req/s</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Speed</label>
+    <input type="range" id="slSpeed" min="0.5" max="3" step="0.5" value="1">
+    <div class="val"><span id="valSpeed">1.0</span>x</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Algoritma</label>
+    <select id="selAlgo">
+      <option value="round_robin">Round Robin</option>
+      <option value="random">Random</option>
+      <option value="least_connection">Least Connection</option>
+    </select>
+  </div>
+  <div class="btn-group">
+    <button id="btnPlay" onclick="togglePlay()">⏸ Pause</button>
+    <button id="btnReset" onclick="resetSim()">↺ Reset</button>
+  </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="statsBar">
+  <div class="stat-item">
+    <div class="stat-label">Total Request</div>
+    <div class="stat-value" id="stTotal">0</div>
+    <div class="stat-sub">sejak reset</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Selesai Diproses</div>
+    <div class="stat-value" id="stDone">0</div>
+    <div class="stat-sub" id="stDonePct">0% success rate</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Throughput</div>
+    <div class="stat-value" id="stTput">0.00</div>
+    <div class="stat-sub">req/s aktual</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Utilisasi (ρ)</div>
+    <div class="stat-value" id="stRho">0.00</div>
+    <div class="stat-sub" id="stRhoStatus">stabil</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Avg Wait Time</div>
+    <div class="stat-value" id="stWait">0.00</div>
+    <div class="stat-sub">detik</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Little's Law L</div>
+    <div class="stat-value" id="stL">0.00</div>
+    <div class="stat-sub">λW = L</div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────
+let lambda = 2, numWorkers = 3, mu = 1, speed = 1;
+let algorithm = "round_robin";
+let paused = false;
+let packets = [], workers = [], trails = [];
+let stats = { total: 0, done: 0, waitTimes: [], startTime: Date.now() };
+let nextSpawn = 0, reqId = 0;
+let throughputHistory = [];
+
+// ── Controls ─────────────────────────────────────────────────────
+function bind(id, valId, decimals, cb) {
+  const el = document.getElementById(id);
+  el.oninput = () => {
+    document.getElementById(valId).innerText = parseFloat(el.value).toFixed(decimals);
+    cb(parseFloat(el.value));
+  };
+}
+bind("slLambda", "valLambda", 1, v => lambda = v);
+bind("slWorkers", "valWorkers", 0, v => { numWorkers = v; initWorkers(); });
+bind("slMu", "valMu", 1, v => mu = v);
+bind("slSpeed", "valSpeed", 1, v => speed = v);
+document.getElementById("selAlgo").onchange = e => algorithm = e.target.value;
+
+function togglePlay() {
+  paused = !paused;
+  const btn = document.getElementById("btnPlay");
+  btn.textContent = paused ? "▶ Play" : "⏸ Pause";
+  btn.classList.toggle("paused", paused);
+}
+
+function resetSim() {
+  packets = []; trails = [];
+  stats = { total: 0, done: 0, waitTimes: [], startTime: Date.now() };
+  throughputHistory = [];
+  reqId = 0;
+  nextSpawn = 0;
+  initWorkers();
+}
+
+function initWorkers() {
+  workers = Array.from({ length: numWorkers }, (_, i) => ({
+    id: i, queue: 0, busy: false, busyTimer: 0, processed: 0
+  }));
+}
+
+function selectWorker() {
+  if (algorithm === "round_robin") return reqId % numWorkers;
+  if (algorithm === "random") return Math.floor(Math.random() * numWorkers);
+  return workers.reduce((a, b) => b.queue < a.queue ? b : a).id;
+}
+
+function expRandom(rate) {
+  return -Math.log(Math.random()) / rate;
+}
+
+// ── p5 Sketch ────────────────────────────────────────────────────
+new p5(function(p) {
+  let W, H;
+
+  p.setup = function() {
+    W = Math.min(window.innerWidth, 960);
+    H = 480;
+    let c = p.createCanvas(W, H);
+    c.parent("canvas-container");
+    p.textFont("Segoe UI");
+    initWorkers();
+  };
+
+  p.draw = function() {
+    if (paused) return;
+
+    let dt = (p.deltaTime / 1000) * speed;
+
+    // Background dengan grid subtle
+    p.background(10, 14, 26);
+    drawGrid(p, W, H);
+
+    let lbX = W * 0.30, lbY = H / 2;
+    let genX = W * 0.08, genY = H / 2;
+    let wSpacing = H / (numWorkers + 1);
+
+    // Update workers
+    for (let w of workers) {
+      if (w.busy) {
+        w.busyTimer -= dt;
+        if (w.busyTimer <= 0) {
+          w.busy = false;
+          w.queue = Math.max(0, w.queue - 1);
+          w.processed++;
+          stats.done++;
+        }
+      }
+    }
+
+    // Spawn packets
+    nextSpawn -= dt;
+    if (nextSpawn <= 0) {
+      let wid = selectWorker();
+      let wx = W * 0.75, wy = wSpacing * (wid + 1);
+      let arriveT = Date.now();
+      packets.push({
+        x: genX, y: genY,
+        tx: wx, ty: wy,
+        wid, phase: "toLB",
+        alpha: 255, id: reqId,
+        size: 10, hue: 200,
+        trail: [], arriveT
+      });
+      workers[wid].queue++;
+      if (!workers[wid].busy) {
+        workers[wid].busy = true;
+        workers[wid].busyTimer = expRandom(mu);
+        let waitT = (Date.now() - arriveT) / 1000;
+        stats.waitTimes.push(waitT);
+      }
+      stats.total++;
+      reqId++;
+      nextSpawn = expRandom(lambda);
+    }
+
+    // Draw trails
+    for (let t of trails) {
+      t.alpha -= 6;
+      if (t.alpha > 0) {
+        p.noStroke();
+        p.fill(100, 180, 255, t.alpha * 0.3);
+        p.ellipse(t.x, t.y, t.size * 0.6);
+      }
+    }
+    trails = trails.filter(t => t.alpha > 0);
+
+    // Update & draw packets
+    for (let pk of packets) {
+      if (pk.phase === "toLB") {
+        pk.x = p.lerp(pk.x, lbX, 0.09 * speed);
+        pk.y = p.lerp(pk.y, lbY, 0.09 * speed);
+        if (p.dist(pk.x, pk.y, lbX, lbY) < 8) pk.phase = "toWorker";
+      } else if (pk.phase === "toWorker") {
+        pk.x = p.lerp(pk.x, pk.tx, 0.07 * speed);
+        pk.y = p.lerp(pk.y, pk.ty, 0.07 * speed);
+        if (p.dist(pk.x, pk.y, pk.tx, pk.ty) < 8) pk.phase = "arrive";
+      } else if (pk.phase === "arrive") {
+        pk.size = p.lerp(pk.size, 16, 0.2);
+        pk.alpha -= 15;
+        if (pk.alpha <= 0) pk.phase = "done";
+      }
+
+      if (pk.phase !== "done" && pk.alpha > 0) {
+        // Trail
+        trails.push({ x: pk.x, y: pk.y, alpha: pk.alpha * 0.5, size: pk.size });
+
+        // Glow
+        p.noStroke();
+        p.fill(64, 181, 246, pk.alpha * 0.15);
+        p.ellipse(pk.x, pk.y, pk.size * 2.5);
+        p.fill(64, 181, 246, pk.alpha * 0.25);
+        p.ellipse(pk.x, pk.y, pk.size * 1.8);
+
+        // Core
+        p.fill(150, 210, 255, pk.alpha);
+        p.ellipse(pk.x, pk.y, pk.size);
+
+        // ID label
+        p.fill(255, pk.alpha);
+        p.textSize(7);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text(pk.id, pk.x, pk.y);
+      }
+    }
+    packets = packets.filter(pk => pk.phase !== "done");
+
+    // Draw connections (lines LB to workers)
+    for (let i = 0; i < numWorkers; i++) {
+      let wy = wSpacing * (i + 1);
+      let wx = W * 0.75;
+      p.stroke(30, 60, 100, 60);
+      p.strokeWeight(1);
+      p.drawingContext.setLineDash([4, 8]);
+      p.line(lbX + 38, lbY, wx - 44, wy);
+      p.drawingContext.setLineDash([]);
+    }
+
+    // Line gen to LB
+    p.stroke(30, 60, 100, 60);
+    p.strokeWeight(1);
+    p.drawingContext.setLineDash([4, 8]);
+    p.line(genX + 28, genY, lbX - 38, lbY);
+    p.drawingContext.setLineDash([]);
+
+    // Draw Request Generator
+    drawBox(p, genX, genY, 56, 52, [30, 80, 160], [64, 148, 230], "REQUEST\nGENERATOR", `λ=${lambda}/s`);
+
+    // Draw Load Balancer
+    let algoShort = algorithm === "round_robin" ? "RR" : algorithm === "random" ? "RND" : "LC";
+    drawBox(p, lbX, lbY, 76, 58, [80, 40, 160], [150, 100, 230], "LOAD\nBALANCER", algoShort);
+
+    // Draw Workers
+    for (let i = 0; i < numWorkers; i++) {
+      let w = workers[i];
+      let wx = W * 0.75, wy = wSpacing * (i + 1);
+      let col = workerColor(w);
+
+      // Glow effect untuk busy worker
+      if (w.busy) {
+        p.noStroke();
+        p.fill(col[0], col[1], col[2], 30);
+        p.rect(wx - 54, wy - 34, 108, 68, 12);
+      }
+
+      drawWorkerBox(p, wx, wy, w, col, i);
+    }
+
+    // Update stats UI
+    updateStats();
+  };
+
+  function drawGrid(p, W, H) {
+    p.stroke(20, 30, 50);
+    p.strokeWeight(0.5);
+    for (let x = 0; x < W; x += 40) p.line(x, 0, x, H);
+    for (let y = 0; y < H; y += 40) p.line(0, y, W, y);
+  }
+
+  function drawBox(p, x, y, w, h, colDark, colLight, title, sub) {
+    // Shadow
+    p.noStroke();
+    p.fill(0, 0, 0, 60);
+    p.rect(x - w/2 + 3, y - h/2 + 3, w, h, 10);
+
+    // Body gradient simulation
+    p.fill(colDark[0], colDark[1], colDark[2]);
+    p.rect(x - w/2, y - h/2, w, h, 10);
+    p.fill(colLight[0], colLight[1], colLight[2], 40);
+    p.rect(x - w/2, y - h/2, w, h/2, 10, 10, 0, 0);
+
+    // Border
+    p.stroke(colLight[0], colLight[1], colLight[2], 120);
+    p.strokeWeight(1.5);
+    p.noFill();
+    p.rect(x - w/2, y - h/2, w, h, 10);
+
+    // Text
+    p.noStroke();
+    p.fill(220, 235, 255);
+    p.textSize(9);
+    p.textAlign(p.CENTER, p.CENTER);
+    p.text(title, x, y - 8);
+    p.fill(colLight[0], colLight[1], colLight[2]);
+    p.textSize(10);
+    p.textStyle(p.BOLD);
+    p.text(sub, x, y + 9);
+    p.textStyle(p.NORMAL);
+  }
+
+  function drawWorkerBox(p, x, y, w, col, idx) {
+    let bw = 88, bh = 60;
+
+    // Shadow
+    p.noStroke();
+    p.fill(0, 0, 0, 60);
+    p.rect(x - bw/2 + 3, y - bh/2 + 3, bw, bh, 10);
+
+    // Body
+    p.fill(col[0] * 0.4, col[1] * 0.4, col[2] * 0.4);
+    p.rect(x - bw/2, y - bh/2, bw, bh, 10);
+    p.fill(col[0], col[1], col[2], 50);
+    p.rect(x - bw/2, y - bh/2, bw, bh/2, 10, 10, 0, 0);
+
+    // Border
+    p.stroke(col[0], col[1], col[2], 180);
+    p.strokeWeight(1.5);
+    p.noFill();
+    p.rect(x - bw/2, y - bh/2, bw, bh, 10);
+
+    // Status indicator dot
+    p.noStroke();
+    p.fill(w.busy ? [231, 76, 60] : [46, 204, 113]);
+    p.ellipse(x + bw/2 - 10, y - bh/2 + 10, 7);
+
+    // Text
+    p.fill(220, 235, 255);
+    p.textSize(9);
+    p.textAlign(p.CENTER, p.CENTER);
+    p.text(`WORKER ${idx}`, x, y - 14);
+
+    p.fill(col[0] + 80, col[1] + 80, col[2] + 80);
+    p.textSize(10);
+    p.textStyle(p.BOLD);
+    p.text(`Queue: ${w.queue}`, x, y + 2);
+    p.textStyle(p.NORMAL);
+
+    p.textSize(8);
+    p.fill(w.busy ? [231, 120, 100] : [100, 200, 130]);
+    p.text(w.busy ? "● BUSY" : "● IDLE", x, y + 17);
+
+    // Progress bar untuk busy timer
+    if (w.busy && w.busyTimer > 0) {
+      let maxTimer = 1 / mu;
+      let prog = Math.max(0, Math.min(1, w.busyTimer / maxTimer));
+      p.noStroke();
+      p.fill(40, 50, 70);
+      p.rect(x - 30, y + 26, 60, 5, 3);
+      p.fill(col[0], col[1], col[2]);
+      p.rect(x - 30, y + 26, 60 * (1 - prog), 5, 3);
+    }
+  }
+
+  function workerColor(w) {
+    if (w.queue === 0) return [46, 204, 113];
+    if (w.queue <= 2) return [241, 196, 15];
+    return [231, 76, 60];
+  }
+
+  function updateStats() {
+    let elapsed = (Date.now() - stats.startTime) / 1000;
+    let tput = elapsed > 0 ? stats.done / elapsed : 0;
+    let rho = lambda / (numWorkers * mu);
+    let avgWait = stats.waitTimes.length > 0
+      ? stats.waitTimes.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, stats.waitTimes.length)
+      : 0;
+    let L = tput * (avgWait + 1/mu);
+
+    document.getElementById("stTotal").textContent = stats.total;
+    document.getElementById("stDone").textContent = stats.done;
+    document.getElementById("stDonePct").textContent =
+      stats.total > 0 ? `${Math.round(stats.done/stats.total*100)}% success rate` : "0% success rate";
+    document.getElementById("stTput").textContent = tput.toFixed(2);
+    document.getElementById("stRho").textContent = rho.toFixed(2);
+    document.getElementById("stRhoStatus").textContent =
+      rho < 0.7 ? "✅ stabil" : rho < 0.9 ? "⚠️ mendekati kritis" : "🔴 kritis!";
+    document.getElementById("stWait").textContent = avgWait.toFixed(2);
+    document.getElementById("stL").textContent = L.toFixed(2);
+  }
+});
+</script>
+</body>
+</html>
