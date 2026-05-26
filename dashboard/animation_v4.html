@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulasi Antrian Server v4</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0a0e1a; font-family:'Segoe UI',Arial,sans-serif; color:#e0e0e0; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+    header { width:100%; padding:12px 24px; background:linear-gradient(90deg,#0d1b2a,#1a2a4a); border-bottom:1px solid #1e3a5f; display:flex; align-items:center; gap:12px; }
+    header h1 { font-size:16px; font-weight:600; color:#64b5f6; letter-spacing:.5px; }
+    header .hsub { font-size:11px; color:#78909c; margin-left:auto; }
+    #controls { width:100%; max-width:960px; display:flex; flex-wrap:wrap; gap:10px; padding:10px 14px; background:#0d1422; border-bottom:1px solid #1a2a3a; align-items:flex-end; }
+    .ctrl-group { display:flex; flex-direction:column; gap:3px; min-width:105px; }
+    .ctrl-group label { font-size:10px; color:#78909c; text-transform:uppercase; letter-spacing:.8px; }
+    .ctrl-group .val { font-size:13px; color:#64b5f6; font-weight:600; }
+    input[type=range] { width:100%; accent-color:#64b5f6; cursor:pointer; }
+    select { background:#1a2a3a; color:#e0e0e0; border:1px solid #2a3a4a; padding:5px 8px; border-radius:4px; font-size:12px; cursor:pointer; }
+    .btn-group { display:flex; gap:7px; margin-left:auto; align-items:flex-end; flex-wrap:wrap; }
+    button { padding:7px 13px; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; letter-spacing:.4px; transition:all .2s; white-space:nowrap; }
+    #btnPlay { background:#1565c0; color:#fff; } #btnPlay:hover { background:#1976d2; } #btnPlay.paused { background:#2e7d32; }
+    #btnReset { background:#37474f; color:#cfd8dc; } #btnReset:hover { background:#455a64; }
+    #btnStress { background:#7b3b00; color:#ffcc80; } #btnStress:hover { background:#a04000; } #btnStress.active { background:#e65100; color:#fff; animation:stressPulse .8s infinite alternate; }
+    #btnSnap { background:#4a2060; color:#ce93d8; } #btnSnap:hover { background:#6a1b9a; color:#fff; }
+    @keyframes stressPulse { from{box-shadow:0 0 4px rgba(230,81,0,.4)} to{box-shadow:0 0 14px rgba(230,81,0,.9)} }
+    #algoDesc { width:100%; max-width:960px; background:#0a1628; border-bottom:1px solid #1a2a3a; padding:5px 14px; font-size:11px; color:#78909c; display:flex; align-items:center; gap:8px; }
+    #algoDesc .label { color:#546e7a; text-transform:uppercase; font-size:10px; letter-spacing:.8px; }
+    #algoDesc .desc { color:#90caf9; }
+    #timerBar { margin-left:auto; display:flex; align-items:center; gap:14px; font-family:monospace; font-size:11px; }
+    #timerBar .timer { color:#80cbc4; } #timerBar .rho { color:#a5d6a7; }
+    #canvas-container { width:100%; max-width:960px; position:relative; }
+    #alertBanner { display:none; position:absolute; top:10px; left:50%; transform:translateX(-50%); background:rgba(183,28,28,.9); color:#fff; padding:6px 20px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid #ef5350; animation:pulse 1s infinite alternate; z-index:10; white-space:nowrap; }
+    @keyframes pulse { from{box-shadow:0 0 6px rgba(239,83,80,.4)} to{box-shadow:0 0 20px rgba(239,83,80,.95)} }
+    #stressBar { display:none; position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:rgba(10,14,26,.88); border:1px solid #e65100; border-radius:8px; padding:6px 16px; font-size:11px; color:#ffcc80; z-index:10; white-space:nowrap; }
+    #autopauseMsg { display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(10,14,26,.93); border:1px solid #ef5350; border-radius:12px; padding:20px 28px; text-align:center; z-index:20; }
+    #autopauseMsg h3 { color:#ef5350; font-size:15px; margin-bottom:8px; }
+    #autopauseMsg p { color:#90a4ae; font-size:12px; line-height:1.6; }
+    #autopauseMsg button { margin-top:12px; background:#1565c0; color:#fff; padding:6px 18px; border:none; border-radius:6px; cursor:pointer; font-size:12px; }
+    #statsBar { width:100%; max-width:960px; display:flex; background:#0d1422; border-top:1px solid #1a2a3a; }
+    .stat-item { flex:1; padding:9px 10px; border-right:1px solid #1a2a3a; display:flex; flex-direction:column; gap:2px; }
+    .stat-item:last-child { border-right:none; }
+    .stat-label { font-size:9px; color:#546e7a; text-transform:uppercase; letter-spacing:.8px; }
+    .stat-value { font-size:18px; font-weight:700; color:#64b5f6; transition:color .3s; }
+    .stat-sub { font-size:10px; color:#78909c; }
+    .stat-formula { font-size:9px; color:#455a64; font-family:monospace; margin-top:2px; }
+    #algoTable { width:100%; max-width:960px; background:#0a0f1e; border-top:1px solid #1a2a3a; padding:8px 14px 10px; }
+    .at-title { font-size:10px; color:#546e7a; text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; }
+    table.at { width:100%; border-collapse:collapse; font-size:11px; }
+    table.at th { color:#546e7a; font-weight:500; text-align:left; padding:3px 8px; border-bottom:1px solid #1a2a3a; font-size:10px; }
+    table.at td { padding:4px 8px; color:#90a4ae; border-bottom:1px solid #0d1422; }
+    table.at tr.active-row td { color:#e0e0e0; background:#0d1a2e; }
+    table.at td.num { font-family:monospace; color:#64b5f6; }
+    table.at td.num.good { color:#4caf50; } table.at td.num.warn { color:#ff9800; } table.at td.num.bad { color:#f44336; }
+    #chartArea { width:100%; max-width:960px; background:#0d1422; border-top:1px solid #1a2a3a; padding:8px 14px 10px; display:flex; gap:14px; }
+    .chart-col { flex:1; display:flex; flex-direction:column; }
+    .chart-title { font-size:10px; color:#546e7a; text-transform:uppercase; letter-spacing:.8px; margin-bottom:5px; }
+    canvas.chart { width:100%; display:block; }
+  </style>
+</head>
+<body>
+<header>
+  <span style="font-size:20px">🖥️</span>
+  <h1>Simulasi Stokastik Sistem Antrian Server</h1>
+  <span class="hsub">Distribusi Poisson &amp; Eksponensial — M/M/c Queue</span>
+</header>
+
+<div id="controls">
+  <div class="ctrl-group">
+    <label>λ — Arrival Rate</label>
+    <input type="range" id="slLambda" min="0.5" max="5" step="0.5" value="2">
+    <div class="val"><span id="valLambda">2.0</span> req/s</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Workers (c)</label>
+    <input type="range" id="slWorkers" min="1" max="5" step="1" value="3">
+    <div class="val"><span id="valWorkers">3</span> server</div>
+  </div>
+  <div class="ctrl-group">
+    <label>μ — Service Rate</label>
+    <input type="range" id="slMu" min="0.5" max="3" step="0.5" value="1">
+    <div class="val"><span id="valMu">1.0</span> req/s</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Speed</label>
+    <input type="range" id="slSpeed" min="0.5" max="3" step="0.5" value="1">
+    <div class="val"><span id="valSpeed">1.0</span>x</div>
+  </div>
+  <div class="ctrl-group">
+    <label>Algoritma</label>
+    <select id="selAlgo">
+      <option value="round_robin">Round Robin</option>
+      <option value="random">Random</option>
+      <option value="least_connection">Least Connection</option>
+    </select>
+  </div>
+  <div class="btn-group">
+    <button id="btnPlay"   onclick="togglePlay()">⏸ Pause</button>
+    <button id="btnReset"  onclick="resetSim()">↺ Reset</button>
+    <button id="btnStress" onclick="toggleStress()">📈 Stress Test</button>
+    <button id="btnSnap"   onclick="snapCanvas()">📷 Snap</button>
+  </div>
+</div>
+
+<div id="algoDesc">
+  <span class="label">Algoritma:</span>
+  <span class="desc" id="algoDescText">Round Robin — request didistribusikan bergiliran ke setiap worker secara berurutan</span>
+  <div id="timerBar">
+    <span class="timer">⏱ <span id="timerVal">00:00</span></span>
+    <span class="rho" id="rhoFormula">ρ = λ/(c·μ) = 2.0/(3×1.0) = 0.67</span>
+  </div>
+</div>
+
+<div id="canvas-container">
+  <div id="alertBanner">🔴 SISTEM KRITIS — ρ ≥ 1, antrian tidak stabil!</div>
+  <div id="stressBar">📈 Stress Test aktif — λ naik otomatis hingga sistem collapse</div>
+  <div id="autopauseMsg">
+    <h3>⚠️ Sistem Tidak Stabil (ρ ≥ 1)</h3>
+    <p>Antrian akan terus membesar tanpa batas.<br>Tambah jumlah worker, kurangi λ, atau tingkatkan μ.</p>
+    <button onclick="resumeFromPause()">▶ Lanjutkan Tetap</button>
+  </div>
+</div>
+
+<div id="statsBar">
+  <div class="stat-item">
+    <div class="stat-label">Total Request</div>
+    <div class="stat-value" id="stTotal">0</div>
+    <div class="stat-sub">sejak reset</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Selesai Diproses</div>
+    <div class="stat-value" id="stDone">0</div>
+    <div class="stat-sub" id="stDonePct">0% success rate</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Throughput</div>
+    <div class="stat-value" id="stTput">0.00</div>
+    <div class="stat-sub">req/s aktual</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Utilisasi (ρ)</div>
+    <div class="stat-value" id="stRho">0.67</div>
+    <div class="stat-sub" id="stRhoStatus">✅ stabil</div>
+    <div class="stat-formula" id="stRhoFormula">2.0/(3×1.0)</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Avg Wait Time (Wq)</div>
+    <div class="stat-value" id="stWait">0.00</div>
+    <div class="stat-sub">detik</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Little's Law L=λW</div>
+    <div class="stat-value" id="stL">0.00</div>
+    <div class="stat-sub" id="stLsub">λ×W = L</div>
+  </div>
+</div>
+
+<!-- Algo comparison table -->
+<div id="algoTable">
+  <div class="at-title">📊 Perbandingan Algoritma (Live)</div>
+  <table class="at">
+    <thead>
+      <tr>
+        <th>Algoritma</th>
+        <th>Total Req</th>
+        <th>Throughput</th>
+        <th>Avg Wait</th>
+        <th>Avg Service</th>
+        <th>L = λW</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="algoTableBody">
+      <tr id="row_round_robin"><td>Round Robin</td><td class="num" id="at_rr_total">—</td><td class="num" id="at_rr_tput">—</td><td class="num" id="at_rr_wait">—</td><td class="num" id="at_rr_svc">—</td><td class="num" id="at_rr_L">—</td><td id="at_rr_status">—</td></tr>
+      <tr id="row_random"><td>Random</td><td class="num" id="at_rd_total">—</td><td class="num" id="at_rd_tput">—</td><td class="num" id="at_rd_wait">—</td><td class="num" id="at_rd_svc">—</td><td class="num" id="at_rd_L">—</td><td id="at_rd_status">—</td></tr>
+      <tr id="row_least_connection"><td>Least Conn.</td><td class="num" id="at_lc_total">—</td><td class="num" id="at_lc_tput">—</td><td class="num" id="at_lc_wait">—</td><td class="num" id="at_lc_svc">—</td><td class="num" id="at_lc_L">—</td><td id="at_lc_status">—</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="chartArea">
+  <div class="chart-col">
+    <div class="chart-title">📈 Throughput Real-time (req/s)</div>
+    <canvas id="chartTput" class="chart" height="70"></canvas>
+  </div>
+  <div class="chart-col">
+    <div class="chart-title">📊 Distribusi Service Time (Eksponensial)</div>
+    <canvas id="chartSvc" class="chart" height="70"></canvas>
+  </div>
+</div>
+
+<!-- Hidden snap canvas -->
+<canvas id="snapCanvas" style="display:none"></canvas>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let lambda=2, numWorkers=3, mu=1, speed=1;
+let algorithm="round_robin";
+let paused=false, autoPaused=false, userOverride=false;
+let stressActive=false, stressStart=0, stressBaseLambda=0.5;
+let packets=[], workers=[], trails=[];
+let stats={ total:0, done:0, waitTimes:[], serviceTimes:[], startTime:performance.now() };
+let nextSpawn=0, reqId=0, lineAnimOffset=0;
+let tputData=[], lastChartUpdate=0;
+
+// Per-algo accumulated stats (persist across resets per algo)
+const algoStats={
+  round_robin:     { total:0, done:0, waitTimes:[], serviceTimes:[], startTime:performance.now() },
+  random:          { total:0, done:0, waitTimes:[], serviceTimes:[], startTime:performance.now() },
+  least_connection:{ total:0, done:0, waitTimes:[], serviceTimes:[], startTime:performance.now() }
+};
+
+const ALGO_DESC={
+  round_robin:      "Round Robin — request didistribusikan bergiliran ke setiap worker secara berurutan",
+  random:           "Random — worker dipilih secara acak dengan distribusi uniform diskrit",
+  least_connection: "Least Connection — request diarahkan ke worker dengan antrian terpendek saat ini"
+};
+const ALGO_SHORT={ round_robin:"RR", random:"RND", least_connection:"LC" };
+const ALGO_KEY={ round_robin:"rr", random:"rd", least_connection:"lc" };
+
+// ── Audio (Web Audio API) ──────────────────────────────────────────────────
+let audioCtx=null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+}
+function playDone() {
+  try {
+    ensureAudio();
+    let o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value=880; g.gain.setValueAtTime(0.06,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.08);
+    o.start(); o.stop(audioCtx.currentTime+0.08);
+  } catch(e){}
+}
+function playAlarm() {
+  try {
+    ensureAudio();
+    [440,330].forEach((f,i)=>{
+      let o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.value=f; g.gain.setValueAtTime(0.12,audioCtx.currentTime+i*0.15);
+      g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+i*0.15+0.2);
+      o.start(audioCtx.currentTime+i*0.15); o.stop(audioCtx.currentTime+i*0.15+0.2);
+    });
+  } catch(e){}
+}
+let lastAlarm=0;
+
+// ── Controls ───────────────────────────────────────────────────────────────
+function bind(id,valId,dec,cb){
+  const el=document.getElementById(id);
+  el.oninput=()=>{ document.getElementById(valId).innerText=parseFloat(el.value).toFixed(dec); cb(parseFloat(el.value)); updateFormulaBar(); };
+}
+bind("slLambda","valLambda",1,v=>lambda=v);
+bind("slWorkers","valWorkers",0,v=>{ numWorkers=v; initWorkers(); });
+bind("slMu","valMu",1,v=>mu=v);
+bind("slSpeed","valSpeed",1,v=>speed=v);
+document.getElementById("selAlgo").onchange=e=>{
+  algorithm=e.target.value;
+  document.getElementById("algoDescText").textContent=ALGO_DESC[algorithm];
+  highlightAlgoRow();
+};
+
+function updateFormulaBar(){
+  let rho=lambda/(numWorkers*mu);
+  document.getElementById("rhoFormula").textContent=
+    `ρ = λ/(c·μ) = ${lambda.toFixed(1)}/(${numWorkers}×${mu.toFixed(1)}) = ${rho.toFixed(2)}`;
+}
+
+function highlightAlgoRow(){
+  ["round_robin","random","least_connection"].forEach(a=>{
+    document.getElementById(`row_${a}`).classList.toggle("active-row",a===algorithm);
+  });
+}
+
+function togglePlay(){
+  if(autoPaused) return;
+  paused=!paused;
+  const btn=document.getElementById("btnPlay");
+  btn.textContent=paused?"▶ Play":"⏸ Pause";
+  btn.classList.toggle("paused",paused);
+}
+
+function resumeFromPause(){
+  autoPaused=false; userOverride=true; paused=false;
+  document.getElementById("autopauseMsg").style.display="none";
+  document.getElementById("btnPlay").textContent="⏸ Pause";
+  document.getElementById("btnPlay").classList.remove("paused");
+}
+
+function resetSim(){
+  packets=[]; trails=[];
+  stats={ total:0, done:0, waitTimes:[], serviceTimes:[], startTime:performance.now() };
+  tputData=[]; reqId=0; nextSpawn=0; autoPaused=false; userOverride=false;
+  document.getElementById("autopauseMsg").style.display="none";
+  initWorkers();
+  ["chartTput","chartSvc"].forEach(id=>{ const c=document.getElementById(id); c.getContext("2d").clearRect(0,0,c.width,c.height); });
+  updateFormulaBar();
+}
+
+function initWorkers(){
+  workers=Array.from({length:numWorkers},(_,i)=>({
+    id:i, queue:0, busy:false, busyTimer:0, processed:0, pendingQueue:[]
+  }));
+}
+
+function selectWorker(){
+  if(algorithm==="round_robin") return reqId%numWorkers;
+  if(algorithm==="random") return Math.floor(Math.random()*numWorkers);
+  return workers.reduce((a,b)=>b.queue<a.queue?b:a).id;
+}
+
+function expRandom(rate){ return -Math.log(Math.random())/rate; }
+
+// ── Stress Test ────────────────────────────────────────────────────────────
+let stressInterval=null;
+function toggleStress(){
+  stressActive=!stressActive;
+  const btn=document.getElementById("btnStress");
+  document.getElementById("stressBar").style.display=stressActive?"block":"none";
+  btn.classList.toggle("active",stressActive);
+  if(stressActive){
+    btn.textContent="⏹ Stop Stress";
+    resetSim(); paused=false;
+    document.getElementById("btnPlay").textContent="⏸ Pause";
+    document.getElementById("btnPlay").classList.remove("paused");
+    lambda=0.5;
+    document.getElementById("slLambda").value=0.5;
+    document.getElementById("valLambda").textContent="0.5";
+    updateFormulaBar();
+    stressInterval=setInterval(()=>{
+      if(!stressActive) return;
+      let newL=Math.min(lambda+0.5,5);
+      lambda=newL;
+      document.getElementById("slLambda").value=newL;
+      document.getElementById("valLambda").textContent=newL.toFixed(1);
+      updateFormulaBar();
+      if(newL>=5){ clearInterval(stressInterval); }
+    },3000);
+  } else {
+    btn.textContent="📈 Stress Test";
+    clearInterval(stressInterval);
+  }
+}
+
+// ── Snap (full screenshot with stats overlay) ──────────────────────────────
+function snapCanvas(){
+  const simCanvas=document.querySelector("#canvas-container canvas");
+  if(!simCanvas) return;
+
+  // Gather current stats
+  let elapsed=(performance.now()-stats.startTime)/1000;
+  let tput=elapsed>0?stats.done/elapsed:0;
+  let recent=stats.waitTimes.slice(-30);
+  let avgWait=recent.length>0?recent.reduce((a,b)=>a+b,0)/recent.length:0;
+  let avgSvc=stats.serviceTimes.length>0?stats.serviceTimes.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,stats.serviceTimes.length):1/mu;
+  let W_total=avgWait+avgSvc;
+  let L=tput*W_total;
+  let rho=lambda/(numWorkers*mu);
+
+  const SW=simCanvas.width, SH=simCanvas.height;
+  const PAD=18, HEADER=52, STATSROW=52, CHARTH=86, FOOTER=36;
+  const totalH=HEADER+SH+STATSROW+CHARTH+FOOTER;
+
+  const sc=document.getElementById("snapCanvas");
+  sc.width=SW+PAD*2; sc.height=totalH+PAD*2;
+  const ctx=sc.getContext("2d");
+
+  // Background
+  ctx.fillStyle="#0a0e1a"; ctx.fillRect(0,0,sc.width,sc.height);
+
+  // Border
+  ctx.strokeStyle="#1e3a5f"; ctx.lineWidth=1;
+  ctx.strokeRect(0.5,0.5,sc.width-1,sc.height-1);
+
+  let Y=PAD;
+
+  // ── Header block ──
+  ctx.fillStyle="#0d1b2a"; ctx.fillRect(PAD,Y,SW,HEADER);
+  ctx.fillStyle="#64b5f6"; ctx.font="bold 14px Segoe UI,Arial,sans-serif";
+  ctx.fillText("🖥️  Simulasi Stokastik Sistem Antrian Server",PAD+12,Y+20);
+  ctx.fillStyle="#78909c"; ctx.font="11px Segoe UI,Arial,sans-serif";
+  ctx.fillText("Distribusi Poisson & Eksponensial — M/M/c Queue",PAD+12,Y+38);
+  // algo + params on right
+  let paramStr=`λ=${lambda.toFixed(1)}  c=${numWorkers}  μ=${mu.toFixed(1)}  ρ=${rho.toFixed(2)}  Algo: ${ALGO_DESC[algorithm].split("—")[0].trim()}`;
+  ctx.fillStyle="#a5d6a7"; ctx.font="10px monospace";
+  let pw=ctx.measureText(paramStr).width;
+  ctx.fillText(paramStr,PAD+SW-pw-8,Y+38);
+  Y+=HEADER;
+
+  // ── Simulation canvas ──
+  ctx.drawImage(simCanvas,PAD,Y,SW,SH);
+  Y+=SH;
+
+  // ── Stats row ──
+  ctx.fillStyle="#0d1422"; ctx.fillRect(PAD,Y,SW,STATSROW);
+  ctx.strokeStyle="#1a2a3a"; ctx.lineWidth=0.5;
+  ctx.strokeRect(PAD,Y,SW,STATSROW);
+  const statItems=[
+    {label:"Total Request", value:stats.total.toString(), sub:"sejak reset"},
+    {label:"Selesai", value:stats.done.toString(), sub:`${stats.total>0?Math.round(stats.done/stats.total*100):0}% success`},
+    {label:"Throughput", value:tput.toFixed(2), sub:"req/s"},
+    {label:"Utilisasi ρ", value:rho.toFixed(2), sub:rho<0.7?"stabil":rho<1?"mendekati kritis":"KRITIS"},
+    {label:"Avg Wait Wq", value:avgWait.toFixed(2), sub:"detik"},
+    {label:"Little's L=λW", value:L.toFixed(2), sub:`${tput.toFixed(2)}×${W_total.toFixed(2)}`},
+  ];
+  const colW=SW/statItems.length;
+  statItems.forEach((s,i)=>{
+    let cx=PAD+i*colW;
+    if(i>0){ ctx.strokeStyle="#1a2a3a"; ctx.lineWidth=0.5; ctx.beginPath(); ctx.moveTo(cx,Y+6); ctx.lineTo(cx,Y+STATSROW-6); ctx.stroke(); }
+    ctx.fillStyle="#546e7a"; ctx.font="9px Segoe UI,Arial,sans-serif";
+    ctx.fillText(s.label.toUpperCase(),cx+8,Y+14);
+    let vColor="#64b5f6";
+    if(s.label==="Utilisasi ρ") vColor=rho<0.7?"#4caf50":rho<1?"#ff9800":"#f44336";
+    ctx.fillStyle=vColor; ctx.font="bold 16px Segoe UI,Arial,sans-serif";
+    ctx.fillText(s.value,cx+8,Y+33);
+    ctx.fillStyle="#78909c"; ctx.font="9px Segoe UI,Arial,sans-serif";
+    ctx.fillText(s.sub,cx+8,Y+46);
+  });
+  Y+=STATSROW;
+
+  // ── Charts from DOM canvases ──
+  ctx.fillStyle="#0d1422"; ctx.fillRect(PAD,Y,SW,CHARTH);
+  ctx.strokeStyle="#1a2a3a"; ctx.lineWidth=0.5; ctx.strokeRect(PAD,Y,SW,CHARTH);
+  const tputEl=document.getElementById("chartTput");
+  const svcEl=document.getElementById("chartSvc");
+  const halfW=Math.floor(SW/2)-4;
+  ctx.fillStyle="#546e7a"; ctx.font="9px Segoe UI,Arial,sans-serif";
+  ctx.fillText("THROUGHPUT REAL-TIME (REQ/S)",PAD+8,Y+12);
+  ctx.fillText("DISTRIBUSI SERVICE TIME (EKSPONENSIAL)",PAD+halfW+12,Y+12);
+  if(tputEl.width>0) ctx.drawImage(tputEl,PAD+4,Y+16,halfW,CHARTH-20);
+  if(svcEl.width>0)  ctx.drawImage(svcEl,PAD+halfW+8,Y+16,halfW,CHARTH-20);
+  Y+=CHARTH;
+
+  // ── Footer ──
+  ctx.fillStyle="#0a0e1a"; ctx.fillRect(PAD,Y,SW,FOOTER);
+  ctx.strokeStyle="#1e3a5f"; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(PAD,Y); ctx.lineTo(PAD+SW,Y); ctx.stroke();
+  ctx.fillStyle="#455a64"; ctx.font="9px monospace";
+  let ts=new Date().toLocaleString("id-ID");
+  ctx.fillText(`Snapshot: ${ts}  |  Waktu simulasi: ${formatTimer((performance.now()-stats.startTime)/1000)}  |  L=λW valid: ${Math.abs(L-tput*W_total)<0.01?"✓":"~"}`,PAD+8,Y+22);
+
+  // Download
+  const link=document.createElement("a");
+  link.download=`simulasi_antrian_${Date.now()}.png`;
+  link.href=sc.toDataURL("image/png");
+  link.click();
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function formatTimer(s){
+  let m=Math.floor(s/60), sec=Math.floor(s%60);
+  return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+}
+setInterval(()=>{
+  if(!paused&&!autoPaused){
+    let s=(performance.now()-stats.startTime)/1000;
+    document.getElementById("timerVal").textContent=formatTimer(s);
+  }
+},500);
+
+// ── Mini Charts ────────────────────────────────────────────────────────────
+function drawTputChart(){
+  const el=document.getElementById("chartTput");
+  const ctx=el.getContext("2d");
+  const W=el.offsetWidth, H=70; el.width=W; el.height=H;
+  ctx.clearRect(0,0,W,H);
+  if(tputData.length<2) return;
+  const max=Math.max(...tputData,0.1), step=W/(tputData.length-1);
+  ctx.strokeStyle="rgba(30,58,95,.5)"; ctx.lineWidth=.5;
+  for(let i=0;i<=3;i++){ const y=H/3*i; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"rgba(100,181,246,.3)"); g.addColorStop(1,"rgba(100,181,246,.02)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(0,H);
+  tputData.forEach((v,i)=>ctx.lineTo(i*step,H-(v/max)*(H-8)));
+  ctx.lineTo((tputData.length-1)*step,H); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="#64b5f6"; ctx.lineWidth=1.5; ctx.lineJoin="round"; ctx.beginPath();
+  tputData.forEach((v,i)=>{ const x=i*step,y=H-(v/max)*(H-8); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+  const lx=(tputData.length-1)*step, ly=H-(tputData[tputData.length-1]/max)*(H-8);
+  ctx.fillStyle="#64b5f6"; ctx.beginPath(); ctx.arc(lx,ly,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#546e7a"; ctx.font="9px Segoe UI";
+  ctx.fillText(max.toFixed(1),2,10); ctx.fillText("0",2,H-2);
+  ctx.fillStyle="#90caf9"; ctx.fillText(tputData[tputData.length-1].toFixed(2)+" req/s",W-68,10);
+}
+
+function drawSvcChart(){
+  const el=document.getElementById("chartSvc");
+  const ctx=el.getContext("2d");
+  const W=el.offsetWidth, H=70; el.width=W; el.height=H;
+  ctx.clearRect(0,0,W,H);
+  const data=stats.serviceTimes.slice(-300);
+  if(data.length<5) return;
+  const bins=14, maxV=Math.min(Math.max(...data),5);
+  const binW=maxV/bins;
+  const counts=new Array(bins).fill(0);
+  data.forEach(v=>{ const b=Math.min(Math.floor(v/binW),bins-1); counts[b]++; });
+  const maxC=Math.max(...counts,1);
+  const bw=W/bins;
+  ctx.strokeStyle="rgba(30,58,95,.5)"; ctx.lineWidth=.5;
+  for(let i=0;i<=3;i++){ const y=H/3*i; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  counts.forEach((c,i)=>{
+    const x=i*bw, h=(c/maxC)*(H-8), alpha=Math.max(.15,1-i/bins*.65);
+    ctx.fillStyle=`rgba(100,181,246,${alpha})`; ctx.fillRect(x+1,H-h,bw-2,h);
+  });
+  ctx.strokeStyle="#ef9f27"; ctx.lineWidth=1.5; ctx.setLineDash([3,3]); ctx.beginPath();
+  for(let i=0;i<=bins;i++){
+    const x=(i/bins)*W, v=(i/bins)*maxV;
+    const ey=mu*Math.exp(-mu*v), normY=Math.min(ey/mu,1);
+    const y=H-normY*(H-8); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#ef9f27"; ctx.font="9px Segoe UI"; ctx.fillText("Exp(μ) fit",W-58,10);
+  ctx.fillStyle="#546e7a"; ctx.fillText("0s",2,H-2); ctx.fillText(maxV.toFixed(1)+"s",W-22,H-2);
+}
+
+// ── Algo comparison table update ───────────────────────────────────────────
+function updateAlgoTable(tput,avgWait,avgSvc,L,rho){
+  const key=ALGO_KEY[algorithm];
+  const as=algoStats[algorithm];
+  const elapsed=(performance.now()-as.startTime)/1000;
+  const atput=elapsed>0?as.done/elapsed:0;
+  const arec=as.waitTimes.slice(-30);
+  const await=arec.length>0?arec.reduce((a,b)=>a+b,0)/arec.length:0;
+  const asvc=as.serviceTimes.length>0?as.serviceTimes.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,as.serviceTimes.length):1/mu;
+  const aL=atput*(await+asvc);
+
+  const setCell=(id,val,cls)=>{ const el=document.getElementById(id); if(el){ el.textContent=val; el.className="num"+(cls?" "+cls:""); } };
+  setCell(`at_${key}_total`,as.total);
+  setCell(`at_${key}_tput`,atput.toFixed(2));
+  setCell(`at_${key}_wait`,await.toFixed(3),await<0.3?"good":await<1?"warn":"bad");
+  setCell(`at_${key}_svc`,asvc.toFixed(3));
+  setCell(`at_${key}_L`,aL.toFixed(2));
+  const statusEl=document.getElementById(`at_${key}_status`);
+  if(statusEl) statusEl.textContent=rho<0.7?"✅ stabil":rho<1?"⚠️ kritis":"🔴 collapse";
+  highlightAlgoRow();
+}
+
+// ── p5 Sketch ──────────────────────────────────────────────────────────────
+new p5(function(p){
+  let W,H;
+
+  p.setup=function(){
+    W=Math.min(window.innerWidth,960); H=480;
+    let c=p.createCanvas(W,H); c.parent("canvas-container");
+    p.textFont("Segoe UI"); initWorkers(); updateFormulaBar(); highlightAlgoRow();
+  };
+
+  p.draw=function(){
+    if(paused||autoPaused) return;
+    let dt=(p.deltaTime/1000)*speed;
+    lineAnimOffset=(lineAnimOffset+dt*28)%12;
+
+    p.background(10,14,26); drawGrid(p,W,H);
+
+    let lbX=W*.30, lbY=H/2, genX=W*.08, genY=H/2;
+    let wSpacing=H/(numWorkers+1);
+    let rho=lambda/(numWorkers*mu);
+
+    document.getElementById("alertBanner").style.display=rho>=1?"block":"none";
+    if(rho>=1){
+      let pulse=(Math.sin(p.millis()/300)+1)/2;
+      p.noStroke(); p.fill(180,20,20,pulse*18); p.rect(0,0,W,H);
+      let now=performance.now();
+      if(!autoPaused&&!userOverride&&stats.total>10){
+        autoPaused=true;
+        playAlarm();
+        document.getElementById("autopauseMsg").style.display="block";
+      } else if(userOverride&&now-lastAlarm>4000){
+        playAlarm(); lastAlarm=now;
+      }
+    }
+
+    // Update workers + pending queue
+    for(let w of workers){
+      if(w.busy){
+        w.busyTimer-=dt;
+        if(w.busyTimer<=0){
+          w.busy=false; w.queue=Math.max(0,w.queue-1); w.processed++; stats.done++;
+          algoStats[algorithm].done++;
+          playDone();
+          if(w.pendingQueue.length>0){
+            let nx=w.pendingQueue.shift();
+            let waitT=(performance.now()-nx.arriveT)/1000;
+            stats.waitTimes.push(waitT); algoStats[algorithm].waitTimes.push(waitT);
+            let svcT=expRandom(mu);
+            stats.serviceTimes.push(svcT); algoStats[algorithm].serviceTimes.push(svcT);
+            w.busy=true; w.busyTimer=svcT;
+          }
+        }
+      }
+    }
+
+    // Spawn
+    nextSpawn-=dt;
+    if(nextSpawn<=0){
+      let wid=selectWorker();
+      let wx=W*.75, wy=wSpacing*(wid+1);
+      let arriveT=performance.now();
+      // Determine packet color based on wait: starts cyan, will turn amber if waiting
+      packets.push({ x:genX,y:genY,tx:wx,ty:wy,wid,phase:"toLB",alpha:255,id:reqId,size:10,arriveT,waitHeat:0 });
+      workers[wid].queue++;
+      if(!workers[wid].busy){
+        let svcT=expRandom(mu);
+        stats.serviceTimes.push(svcT); algoStats[algorithm].serviceTimes.push(svcT);
+        workers[wid].busy=true; workers[wid].busyTimer=svcT;
+        stats.waitTimes.push(0); algoStats[algorithm].waitTimes.push(0);
+      } else {
+        workers[wid].pendingQueue.push({arriveT});
+      }
+      stats.total++; algoStats[algorithm].total++;
+      reqId++; nextSpawn=expRandom(lambda);
+    }
+
+    // Trails
+    for(let t of trails){ t.alpha-=8; if(t.alpha>0){ p.noStroke(); p.fill(100,180,255,t.alpha*.2); p.ellipse(t.x,t.y,t.size*.5); } }
+    trails=trails.filter(t=>t.alpha>0);
+
+    // Connection lines
+    drawAnimLine(p,genX+28,genY,lbX-38,lbY,lineAnimOffset);
+    for(let i=0;i<numWorkers;i++) drawAnimLine(p,lbX+38,lbY,W*.75-44,wSpacing*(i+1),lineAnimOffset);
+
+    // Queue dots (synced to pendingQueue length)
+    for(let i=0;i<numWorkers;i++){
+      let w=workers[i], wx=W*.75, wy=wSpacing*(i+1);
+      let qLen=w.pendingQueue.length;
+      for(let q=0;q<Math.min(qLen,8);q++){
+        let age=qLen>0?(performance.now()-w.pendingQueue[Math.min(q,w.pendingQueue.length-1)].arriveT)/1000:0;
+        let heat=Math.min(age/3,1);
+        let r=Math.round(241+heat*(-241+231)), g2=Math.round(196+heat*(-196+76)), b=Math.round(15+heat*(-15+60));
+        let qx=wx-54-14-q*11, qy=wy;
+        p.noStroke(); p.fill(r,g2,b,190); p.ellipse(qx,qy,9);
+        p.fill(255,200); p.textSize(6); p.textAlign(p.CENTER,p.CENTER); p.text(q+1,qx,qy);
+      }
+      if(qLen>8){ p.fill(231,76,60,200); p.textSize(9); p.textAlign(p.LEFT,p.CENTER); p.text(`+${qLen-8}`,wx-54-14-8*11,wy); }
+    }
+
+    // Packets — color by wait heat
+    for(let pk of packets){
+      pk.waitHeat=Math.min((performance.now()-pk.arriveT)/3000,1);
+      let r=Math.round(150+pk.waitHeat*81), gb=Math.round(210-pk.waitHeat*134);
+      if(pk.phase==="toLB"){ pk.x=p.lerp(pk.x,lbX,.09*speed); pk.y=p.lerp(pk.y,lbY,.09*speed); if(p.dist(pk.x,pk.y,lbX,lbY)<8) pk.phase="toWorker"; }
+      else if(pk.phase==="toWorker"){ pk.x=p.lerp(pk.x,pk.tx,.07*speed); pk.y=p.lerp(pk.y,pk.ty,.07*speed); if(p.dist(pk.x,pk.y,pk.tx,pk.ty)<8) pk.phase="arrive"; }
+      else if(pk.phase==="arrive"){ pk.size=p.lerp(pk.size,20,.2); pk.alpha-=12; if(pk.alpha<=0) pk.phase="done"; }
+      if(pk.phase!=="done"&&pk.alpha>0){
+        trails.push({x:pk.x,y:pk.y,alpha:pk.alpha*.4,size:pk.size});
+        p.noStroke();
+        p.fill(r,gb,gb*.6,pk.alpha*.1); p.ellipse(pk.x,pk.y,pk.size*3);
+        p.fill(r,gb,gb*.6,pk.alpha*.22); p.ellipse(pk.x,pk.y,pk.size*2);
+        p.fill(r,gb,255-pk.waitHeat*200,pk.alpha); p.ellipse(pk.x,pk.y,pk.size);
+        p.fill(255,pk.alpha); p.textSize(7); p.textAlign(p.CENTER,p.CENTER); p.text(pk.id,pk.x,pk.y);
+      }
+    }
+    packets=packets.filter(pk=>pk.phase!=="done");
+
+    // Boxes
+    let algoShort=ALGO_SHORT[algorithm];
+    drawBox(p,genX,genY,56,52,[30,80,160],[64,148,230],"REQUEST\nGENERATOR",`λ=${lambda}/s`);
+    drawBox(p,lbX,lbY,76,58,[80,40,160],[150,100,230],"LOAD\nBALANCER",algoShort);
+    for(let i=0;i<numWorkers;i++){
+      let w=workers[i], wx=W*.75, wy=wSpacing*(i+1), col=workerColor(w);
+      if(w.busy){ p.noStroke(); p.fill(col[0],col[1],col[2],22+Math.sin(p.millis()/200)*12); p.rect(wx-58,wy-38,116,76,14); }
+      drawWorkerBox(p,wx,wy,w,col,i);
+    }
+
+    updateStatsUI(rho);
+  };
+
+  // ── Draw helpers ──────────────────────────────────────────────────────────
+  function drawAnimLine(p,x1,y1,x2,y2,off){
+    let d=p.dist(x1,y1,x2,y2);
+    p.stroke(30,70,120,70); p.strokeWeight(1); p.drawingContext.setLineDash([]); p.line(x1,y1,x2,y2);
+    let steps=Math.ceil(d/12);
+    for(let i=0;i<steps;i++){
+      let t1=((i*12+off)%d)/d, t2=((i*12+6+off)%d)/d;
+      if(t1<0||t1>1||t2<0||t2>1) continue;
+      let ax=p.lerp(x1,x2,t1),ay=p.lerp(y1,y2,t1),bx=p.lerp(x1,x2,t2),by=p.lerp(y1,y2,t2);
+      p.stroke(100,180,255,170); p.strokeWeight(1.8); p.line(ax,ay,bx,by);
+    }
+  }
+  function drawGrid(p,W,H){ p.stroke(18,28,46); p.strokeWeight(.5); for(let x=0;x<W;x+=40) p.line(x,0,x,H); for(let y=0;y<H;y+=40) p.line(0,y,W,y); }
+  function drawBox(p,x,y,w,h,cD,cL,title,sub){
+    p.noStroke(); p.fill(0,0,0,60); p.rect(x-w/2+3,y-h/2+3,w,h,10);
+    p.fill(cD[0],cD[1],cD[2]); p.rect(x-w/2,y-h/2,w,h,10);
+    p.fill(cL[0],cL[1],cL[2],40); p.rect(x-w/2,y-h/2,w,h/2,10,10,0,0);
+    p.stroke(cL[0],cL[1],cL[2],130); p.strokeWeight(1.5); p.noFill(); p.rect(x-w/2,y-h/2,w,h,10);
+    p.noStroke(); p.fill(220,235,255); p.textSize(9); p.textAlign(p.CENTER,p.CENTER); p.text(title,x,y-8);
+    p.fill(cL[0],cL[1],cL[2]); p.textSize(10); p.textStyle(p.BOLD); p.text(sub,x,y+9); p.textStyle(p.NORMAL);
+  }
+  function drawWorkerBox(p,x,y,w,col,idx){
+    let bw=88,bh=60;
+    p.noStroke(); p.fill(0,0,0,60); p.rect(x-bw/2+3,y-bh/2+3,bw,bh,10);
+    p.fill(col[0]*.35,col[1]*.35,col[2]*.35); p.rect(x-bw/2,y-bh/2,bw,bh,10);
+    p.fill(col[0],col[1],col[2],50); p.rect(x-bw/2,y-bh/2,bw,bh/2,10,10,0,0);
+    p.stroke(col[0],col[1],col[2],180); p.strokeWeight(1.5); p.noFill(); p.rect(x-bw/2,y-bh/2,bw,bh,10);
+    p.noStroke(); p.fill(w.busy?[231,76,60]:[46,204,113]); p.ellipse(x+bw/2-10,y-bh/2+10,7);
+    p.fill(220,235,255); p.textSize(9); p.textAlign(p.CENTER,p.CENTER); p.text(`WORKER ${idx}`,x,y-14);
+    p.fill(col[0]+80,col[1]+80,col[2]+80); p.textSize(10); p.textStyle(p.BOLD); p.text(`Queue: ${w.queue}`,x,y+2); p.textStyle(p.NORMAL);
+    p.textSize(8); p.fill(w.busy?[231,120,100]:[100,200,130]); p.text(w.busy?"● BUSY":"● IDLE",x,y+17);
+    if(w.busy&&w.busyTimer>0){
+      let prog=Math.max(0,Math.min(1,1-w.busyTimer/(1/mu)));
+      p.noStroke(); p.fill(30,40,60); p.rect(x-30,y+26,60,5,3);
+      p.fill(col[0],col[1],col[2],200); p.rect(x-30,y+26,60*prog,5,3);
+    }
+  }
+  function workerColor(w){ if(w.queue===0) return [46,204,113]; if(w.queue<=2) return [241,196,15]; return [231,76,60]; }
+
+  function updateStatsUI(rho){
+    let elapsed=(performance.now()-stats.startTime)/1000;
+    let tput=elapsed>0?stats.done/elapsed:0;
+    let recent=stats.waitTimes.slice(-30);
+    let avgWait=recent.length>0?recent.reduce((a,b)=>a+b,0)/recent.length:0;
+    let avgSvc=stats.serviceTimes.length>0?stats.serviceTimes.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,stats.serviceTimes.length):1/mu;
+    let W_total=avgWait+avgSvc, L=tput*W_total;
+
+    document.getElementById("stTotal").textContent=stats.total;
+    document.getElementById("stDone").textContent=stats.done;
+    document.getElementById("stDonePct").textContent=stats.total>0?`${Math.round(stats.done/stats.total*100)}% success rate`:"0% success rate";
+    document.getElementById("stTput").textContent=tput.toFixed(2);
+    let rhoEl=document.getElementById("stRho");
+    rhoEl.textContent=rho.toFixed(2); rhoEl.style.color=rho<0.7?"#4caf50":rho<1?"#ff9800":"#f44336";
+    document.getElementById("stRhoStatus").textContent=rho<0.7?"✅ stabil":rho<0.9?"⚠️ mendekati kritis":"🔴 kritis!";
+    document.getElementById("stRhoFormula").textContent=`${lambda.toFixed(1)}/(${numWorkers}×${mu.toFixed(1)})`;
+    document.getElementById("stWait").textContent=avgWait.toFixed(2);
+    document.getElementById("stL").textContent=L.toFixed(2);
+    document.getElementById("stLsub").textContent=`${tput.toFixed(2)}×${W_total.toFixed(2)} = ${L.toFixed(2)}`;
+
+    let now=performance.now();
+    if(now-lastChartUpdate>1000){
+      tputData.push(tput); if(tputData.length>60) tputData.shift();
+      lastChartUpdate=now; drawTputChart(); drawSvcChart();
+    }
+    updateAlgoTable(tput,avgWait,avgSvc,L,rho);
+  }
+});
+</script>
+</body>
+</html>
