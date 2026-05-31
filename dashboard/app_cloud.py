@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(
     page_title="Simulasi Antrian Server",
-    page_icon="🖥️",
+    page_icon="⚙️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -501,18 +501,23 @@ with st.sidebar:
     st.markdown('<div class="section-header">Kontrol Animasi</div>', unsafe_allow_html=True)
 
     # Baris 1 : Pause | Reset
-    col_p, col_r = st.columns(2)
-    with col_p:
-        pause_label = "▶ Play" if st.session_state.sim_paused else "⏸ Pause"
-        if st.button(pause_label, use_container_width=True, key="btn_pause"):
-            st.session_state.sim_paused = not st.session_state.sim_paused
-            st.rerun()
-    with col_r:
-        if st.button("↺ Reset", use_container_width=True, key="btn_reset"):
-            st.session_state.sim_reset_key += 1
-            st.session_state.sim_paused   = False
-            st.session_state.sim_stress   = False
-            st.rerun()
+    # col_p, col_r = st.columns(2)
+    # with col_p:
+    #     pause_label = "▶ Play" if st.session_state.sim_paused else "⏸ Pause"
+    #     if st.button(pause_label, use_container_width=True, key="btn_pause"):
+    #         st.session_state.sim_paused = not st.session_state.sim_paused
+    #         st.rerun()
+    # with col_r:
+    #     if st.button("↺ Reset", use_container_width=True, key="btn_reset"):
+    #         st.session_state.sim_reset_key += 1
+    #         st.session_state.sim_paused   = False
+    #         st.session_state.sim_stress   = False
+    #         st.rerun()
+
+    if st.button("⏸ Pause" if not st.session_state.sim_paused else "▶ Play",
+             use_container_width=True, key="btn_pause"):
+      st.session_state.sim_paused = not st.session_state.sim_paused
+      st.rerun()
 
     # Baris 2 : Stress Test (full-width)
     stress_label = "⏹ Stop Stress Test" if st.session_state.sim_stress else "📈 Stress Test"
@@ -528,7 +533,7 @@ with st.sidebar:
         )
 
     st.markdown("---")
-    run = st.button("▶ Jalankan Simulasi", use_container_width=True)
+    run = st.button("▶ Tampilkan Hasil Simulasi", use_container_width=True)
 
     st.markdown('<div class="section-header">Tentang Model</div>', unsafe_allow_html=True)
     st.markdown("""
@@ -600,7 +605,7 @@ if not run:
         4. Atur <b style="color:#64b5f6">Speed</b> — kecepatan animasi simulasi<br>
         5. Pastikan <b style="color:#4caf50">ρ = λ/(c·μ) &lt; 1</b> agar sistem stabil<br>
         6. Gunakan <b style="color:#64b5f6">⏸ Pause / ↺ Reset / 📈 Stress Test</b> di sidebar untuk mengontrol animasi<br>
-        7. Klik <b style="color:#64b5f6">▶ Jalankan Simulasi</b> untuk lihat hasil lengkap
+        7. Klik <b style="color:#64b5f6">▶ Tampilkan Hasil Simulasi</b> untuk lihat hasil lengkap
         </div>
     </div>
     """, unsafe_allow_html=True)
