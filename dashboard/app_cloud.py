@@ -15,101 +15,43 @@ st.set_page_config(
 # ── Custom CSS ────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Dark theme override */
-.stApp { background-color: #0a0e1a; }
-section[data-testid="stSidebar"] { background-color: #0d1422; border-right: 1px solid #1a2a3a; }
-section[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
-
-/* Header */
-h1 { color: #64b5f6 !important; font-size: 1.6rem !important; letter-spacing: 0.5px; }
-h2, h3 { color: #90caf9 !important; }
-p, .stMarkdown { color: #b0bec5 !important; }
-
-/* Metric cards custom */
 .metric-card {
-    background: linear-gradient(135deg, #0d1a2e, #0f2040);
-    border: 1px solid #1e3a5f;
+    background: var(--background-color);
+    border: 1px solid rgba(100,181,246,0.2);
     border-radius: 10px;
     padding: 14px 18px;
     text-align: center;
     margin-bottom: 8px;
 }
-.metric-label { font-size: 10px; color: #546e7a; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.metric-label { font-size: 10px; color: #78909c; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
 .metric-value { font-size: 28px; font-weight: 700; color: #64b5f6; line-height: 1; }
-.metric-sub { font-size: 11px; color: #78909c; margin-top: 4px; }
+.metric-sub { font-size: 11px; color: #90a4ae; margin-top: 4px; }
 .metric-good .metric-value { color: #4caf50; }
 .metric-warn .metric-value { color: #ff9800; }
 .metric-bad .metric-value { color: #f44336; }
-
-/* Rho card */
 .rho-card {
-    background: linear-gradient(135deg, #0d1a2e, #0f2040);
     border-radius: 10px;
     padding: 14px 18px;
     margin-bottom: 12px;
     font-family: monospace;
     font-size: 13px;
-    color: #90caf9;
     border-left: 3px solid #64b5f6;
+    background: var(--secondary-background-color);
 }
-
-/* Little's law card */
 .littles-card {
-    background: linear-gradient(135deg, #0d1a2e 0%, #102030 100%);
-    border: 1px solid #1e3a5f;
+    border: 1px solid rgba(100,181,246,0.2);
     border-left: 4px solid #64b5f6;
     border-radius: 10px;
     padding: 16px 20px;
     margin: 8px 0;
     font-size: 14px;
-    color: #90caf9;
+    background: var(--secondary-background-color);
 }
 .littles-card .eq { font-size: 20px; font-weight: 700; color: #64b5f6; font-family: monospace; }
-
-/* Alert cards */
-.alert-stable { background: #0d2318; border: 1px solid #2e7d32; border-radius: 8px; padding: 10px 16px; color: #a5d6a7; font-size: 13px; }
-.alert-critical { background: #2d1010; border: 1px solid #c62828; border-radius: 8px; padding: 10px 16px; color: #ef9a9a; font-size: 13px; }
-.alert-warn { background: #2d1f00; border: 1px solid #e65100; border-radius: 8px; padding: 10px 16px; color: #ffcc80; font-size: 13px; }
-
-/* Table styling */
-.stDataFrame { border: 1px solid #1a2a3a !important; border-radius: 8px; }
-
-/* Divider */
-hr { border-color: #1a2a3a !important; }
-
-/* Sidebar elements */
-.stSlider > div > div { background: #1a2a3a; }
-.stSelectbox > div { background: #1a2a3a; }
-.stButton > button {
-    background: #1565c0;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    width: 100%;
-    padding: 10px;
-    font-size: 14px;
-}
-.stButton > button:hover { background: #1976d2; }
-
-/* Section headers */
-.section-header {
-    font-size: 12px;
-    color: #546e7a;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin: 16px 0 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #1a2a3a;
-}
-
-/* Embed container */
-.embed-container {
-    border: 1px solid #1e3a5f;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 8px 0;
-}
+.alert-stable { background: rgba(46,125,50,0.15); border: 1px solid #2e7d32; border-radius: 8px; padding: 10px 16px; color: #a5d6a7; font-size: 13px; }
+.alert-critical { background: rgba(198,40,40,0.15); border: 1px solid #c62828; border-radius: 8px; padding: 10px 16px; color: #ef9a9a; font-size: 13px; }
+.alert-warn { background: rgba(230,81,0,0.15); border: 1px solid #e65100; border-radius: 8px; padding: 10px 16px; color: #ffcc80; font-size: 13px; }
+.section-header { font-size: 12px; color: #78909c; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(100,181,246,0.15); }
 </style>
 """, unsafe_allow_html=True)
 
