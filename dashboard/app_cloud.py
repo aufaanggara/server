@@ -666,9 +666,7 @@ else:
             labels={"worker_id": "Worker ID", "requests": "Jumlah Request"},
         )
         fig3.update_traces(marker_color=colors)
-        plotly_dark(
-            fig3, f"Request per Worker ({algorithm.replace('_',' ').title()})"
-        )
+        plotly_dark(fig3, f"Request per Worker ({algorithm.replace('_',' ').title()})")
         st.plotly_chart(fig3, use_container_width=True, key="fig3")
 
     with col_r2:
@@ -813,7 +811,6 @@ else:
     """,
         unsafe_allow_html=True,
     )
-    st.markdown("### Animasi Interaktif")
     st.components.v1.html(
         get_animation_html(lambda_rate, num_workers, mu, algorithm),
         height=650,
