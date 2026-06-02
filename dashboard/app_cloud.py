@@ -5,7 +5,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import base64
+import html
 import io
+import json
 import math
 
 def erlang_c_metrics(lam, c, mu):
@@ -263,24 +265,29 @@ def rank_algorithms(all_results, duration, lambda_rate, rho):
 # ══════════════════════════════════════════════════════════════════════════════
 # ANIMATION HTML (UPGRADED: real-time stats + queue visualisation + timeline)
 # ══════════════════════════════════════════════════════════════════════════════
-def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, paused=False, split_mode=False):
+def get_animation_html(lambda_rate, num_workers, mu, algorithm_left, algorithm_right=None, speed=1.0, paused=False, split_mode=False, reset_key=0):
     algo_label = {
         "round_robin": "Round Robin",
         "random": "Random",
         "least_connection": "Least Connection",
-    }[algorithm]
-    algo2 = {"round_robin": "least_connection", "random": "round_robin", "least_connection": "random"}[algorithm]
+    }[algorithm_left]
+    # Use explicit right algorithm if provided (from sidebar). Otherwise fall back to legacy mapping.
+    if algorithm_right:
+        algo2 = algorithm_right
+    else:
+        algo2 = {"round_robin": "least_connection", "random": "round_robin", "least_connection": "random"}[algorithm_left]
     algo2_label = {"round_robin": "Round Robin", "least_connection": "Least Connection", "random": "Random"}[algo2]
 
-    rho       = lambda_rate / (num_workers * mu)
+    rho = lambda_rate / (num_workers * mu)
     rho_color = "#4caf50" if rho < 0.7 else "#ff9800" if rho < 1 else "#f44336"
-    rho_sub   = "✅ stabil" if rho < 0.7 else "⚠️ mendekati kritis" if rho < 1 else "🔴 kritis!"
+    rho_sub = "✅ stabil" if rho < 0.7 else "⚠️ mendekati kritis" if rho < 1 else "🔴 kritis!"
     init_paused = "true" if paused else "false"
     split_js = "true" if split_mode else "false"
+    reset_js = int(reset_key)
 
-    return f"""<!doctype html>
-<html lang="id">
-<head>
+    html = """<!doctype html>
+  <html lang="id">
+  <head>
   <meta charset="UTF-8"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <style>
@@ -358,33 +365,33 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
 <div id="infoBar">
   <div class="info-item">
     <div class="info-label">λ — Arrival</div>
-    <div class="info-value">{lambda_rate:.1f} <span class="info-unit">req/s</span></div>
+    <div class="info-value" id="info_lambda">2.0 <span class="info-unit">req/s</span></div>
     <div class="info-sub">Distribusi Poisson</div>
   </div>
   <div class="info-item">
     <div class="info-label">μ — Service</div>
-    <div class="info-value">{mu:.1f} <span class="info-unit">req/s</span></div>
+    <div class="info-value" id="info_mu">1.0 <span class="info-unit">req/s</span></div>
     <div class="info-sub">Dist. Eksponensial</div>
   </div>
   <div class="info-item">
     <div class="info-label">Workers (c)</div>
-    <div class="info-value">{num_workers}</div>
+    <div class="info-value" id="info_workers">3</div>
     <div class="info-sub">Paralel aktif</div>
   </div>
   <div class="info-item">
     <div class="info-label">Algoritma</div>
-    <div class="info-value" style="font-size:13px;color:#ce93d8">{algo_label}</div>
-    <div class="info-sub" id="algo2subInfo">{"vs " + algo2_label if split_mode else "Single mode"}</div>
+    <div class="info-value" style="font-size:13px;color:#ce93d8" id="info_algo">Round Robin</div>
+    <div class="info-sub" id="algo2subInfo">Single mode</div>
   </div>
   <div class="info-item" style="flex:.7">
     <div class="info-label">ρ Utilisasi</div>
-    <div class="info-value" style="color:{rho_color}">{rho:.2f}</div>
-    <div class="info-sub">{rho_sub}</div>
+    <div class="info-value" id="info_rho" style="color:#4caf50">0.67</div>
+    <div class="info-sub" id="info_rho_sub">✅ stabil</div>
   </div>
 </div>
 <div id="formulaBar">
-  <span>ρ = λ/(c·μ) = {lambda_rate:.1f}/({num_workers}×{mu:.1f}) =</span>
-  <span class="rhoVal">{rho:.3f}</span>
+  <span id="formula_lambda">ρ = λ/(c·μ) = 2.0/(3×1.0) =</span>
+  <span class="rhoVal" id="formula_rho">0.67</span>
   <span class="sep">|</span>
   <span>L = λW</span>
   <span class="sep">|</span>
@@ -403,6 +410,8 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
 </div>
 <div id="main">
   <div id="canvasWrap">
+    <div id="resetSignal" data-reset="0" style="display:none"></div>
+    <div id="pauseSignal" data-paused="false" style="display:none"></div>
     <div id="splitLabel" class="{("on" if split_mode else "")}">
       <div class="split-lbl">◀ {algo_label}</div>
       <div class="split-lbl">{algo2_label} ▶</div>
@@ -419,10 +428,112 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
 </div>
 
 <script>
-  const lambda={lambda_rate}, numWorkers={num_workers}, mu={mu};
-  const algorithm="{algorithm}", algorithm2="{algo2}";
-  const splitMode={split_js};
-  let paused={init_paused};
+  let lambda = {js_lambda};
+  let numWorkers = {js_num_workers};
+  let mu = {js_mu};
+  let algorithm = '{js_algorithm}';
+  let algorithm2 = '{js_algorithm2}';
+  let splitMode = {js_split};
+  let speed = {js_speed};
+  let paused = {js_paused};
+  let resetKey = {js_reset};
+
+  function updatePauseOverlay() {
+    const ov = document.getElementById('pauseOverlay');
+    if (ov) ov.className = paused ? 'visible' : '';
+  }
+
+  function setInfoText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function setInfoHtml(id, htmlValue) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = htmlValue;
+  }
+
+  function updateConfigDisplay() {
+    setInfoHtml('info_lambda', `${{lambda.toFixed(1)}} <span class="info-unit">req/s</span>`);
+    setInfoHtml('info_mu', `${{mu.toFixed(1)}} <span class="info-unit">req/s</span>`);
+    setInfoText('info_workers', numWorkers);
+    setInfoText('info_algo', algorithm.replace('_', ' ').replace(/\\b\\w/g, c => c.toUpperCase()));
+    setInfoText('algo2subInfo', splitMode ? `vs ${{algorithm2.replace('_', ' ').replace(/\\b\\w/g, c => c.toUpperCase())}}` : 'Single mode');
+
+    const rhoVal = lambda / (numWorkers * mu);
+    const rhoText = rhoVal.toFixed(3);
+    const rhoColor = rhoVal < 0.7 ? '#4caf50' : rhoVal < 1 ? '#ff9800' : '#f44336';
+    const rhoSub = rhoVal < 0.7 ? '✅ stabil' : rhoVal < 1 ? '⚠️ mendekati kritis' : '🔴 kritis!';
+    const rhoEl = document.getElementById('info_rho');
+    if (rhoEl) {
+      rhoEl.textContent = rhoText;
+      rhoEl.style.color = rhoColor;
+    }
+    setInfoText('info_rho_sub', rhoSub);
+    setInfoText('formula_rho', rhoText);
+    setInfoHtml('formula_lambda', `ρ = λ/(c·μ) = ${{lambda.toFixed(1)}}/(${{numWorkers}}×${{mu.toFixed(1)}}) =`);
+    document.getElementById('alertBanner').style.display = rhoVal >= 1 ? 'block' : 'none';
+  }
+
+  updatePauseOverlay();
+  updateConfigDisplay();
+
+  window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (!msg || msg.source !== 'wrapper') return;
+    if (msg.type === 'pause') {
+      paused = !!(msg.payload && msg.payload.paused);
+      updatePauseOverlay();
+      console.info('Frame received pause:', paused);
+    } else if (msg.type === 'reset') {
+      doReset();
+      console.info('Frame received reset');
+    } else if (msg.type === 'config' || msg.type === 'init') {
+      const cfg = msg.payload || {};
+      if (cfg.lambda !== undefined) lambda = Number(cfg.lambda) || lambda;
+      if (cfg.mu !== undefined) mu = Number(cfg.mu) || mu;
+      if (cfg.numWorkers !== undefined) numWorkers = Number(cfg.numWorkers) || numWorkers;
+      if (cfg.algorithm) algorithm = cfg.algorithm;
+      if (cfg.algorithm2) algorithm2 = cfg.algorithm2;
+      if (cfg.splitMode !== undefined) splitMode = Boolean(cfg.splitMode);
+      if (cfg.speed !== undefined) speed = Number(cfg.speed) || speed;
+      if (cfg.paused !== undefined) paused = Boolean(cfg.paused);
+      if (cfg.resetKey !== undefined) {
+        const nextKey = Number(cfg.resetKey);
+        if (nextKey !== resetKey) {
+          resetKey = nextKey;
+          doReset();
+        }
+      }
+      updatePauseOverlay();
+      updateConfigDisplay();
+      console.info('Frame received config/init:', msg.type, cfg);
+    }
+  });
+
+  function doReset() {
+    try {
+      workers = makeWorkers(numWorkers);
+      workers2 = makeWorkers(numWorkers);
+      packets = [];
+      packets2 = [];
+      trails = [];
+      trails2 = [];
+      nextSpawn = 0; nextSpawn2 = 0; reqId = 0; reqId2 = 0;
+      totalReq = 0; totalReq2 = 0; completed = 0; completed2 = 0;
+      waitSamples = []; totalWaitSum = 0;
+      tlHistory = [];
+      lineAnimOffset = 0;
+      simStart = performance.now();
+      drawTimeline();
+      console.info('Animation reset (resetKey=' + resetKey + ')');
+    } catch (e) {
+      console.warn('doReset error', e);
+    }
+  }
+  
+  // Try to restore previous state (if available) so pause/resend doesn't reset
+  // (will attempt to run after simulation variables are initialized)
 
   // ── Stats tracking ──────────────────────────────────────────────
   let totalReq=0, completed=0, waitSamples=[], totalWaitSum=0;
@@ -505,6 +616,9 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
   let lineAnimOffset=0;
   let expRandom = (rate) => -Math.log(Math.random())/rate;
 
+  // Now that core arrays exist, animation is ready to receive configuration.
+  console.info('Animation initialized');
+
   function selectWorker(algo, rid, wArr){{
     if(algo==="round_robin")      return rid % wArr.length;
     if(algo==="random")           return Math.floor(Math.random()*wArr.length);
@@ -551,8 +665,9 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
 
     p.draw=function(){{
       if(paused) return;
-      let dt=(p.deltaTime/1000);
-      lineAnimOffset=(lineAnimOffset+dt*28)%12;
+      const simDt = p.deltaTime/1000;
+      const animDt = simDt * speed;
+      lineAnimOffset=(lineAnimOffset+animDt*28)%12;
       p.background(10,14,26);
       drawGrid(p,W,H);
 
@@ -567,16 +682,16 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
         // Split divider
         p.stroke(30,60,90); p.strokeWeight(1.5);
         p.line(W/2,0,W/2,H);
-        drawPanel(p,0,0,W/2,H,workers,packets,trails,algorithm,reqId,nextSpawn,false,dt);
-        drawPanel(p,W/2,0,W/2,H,workers2,packets2,trails2,algorithm2,reqId2,nextSpawn2,true,dt);
+        drawPanel(p,0,0,W/2,H,workers,packets,trails,algorithm,reqId,nextSpawn,false,simDt,animDt);
+        drawPanel(p,W/2,0,W/2,H,workers2,packets2,trails2,algorithm2,reqId2,nextSpawn2,true,simDt,animDt);
         // Update spawn for both
-        nextSpawn-=dt; nextSpawn2-=dt;
-        spawnIfNeeded(0,W/2,H,false,dt);
-        spawnIfNeeded(W/2,W/2,H,true,dt);
+        nextSpawn-=simDt; nextSpawn2-=simDt;
+        spawnIfNeeded(0,W/2,H,false,simDt);
+        spawnIfNeeded(W/2,W/2,H,true,simDt);
       }} else {{
-        drawPanel(p,0,0,W,H,workers,packets,trails,algorithm,reqId,nextSpawn,false,dt);
-        nextSpawn-=dt;
-        spawnIfNeeded(0,W,H,false,dt);
+        drawPanel(p,0,0,W,H,workers,packets,trails,algorithm,reqId,nextSpawn,false,simDt,animDt);
+        nextSpawn-=simDt;
+        spawnIfNeeded(0,W,H,false,simDt);
       }}
       updateStats();
     }};
@@ -604,16 +719,17 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
       }}
     }}
 
-    function drawPanel(p,offX,offY,panelW,panelH,wArr,pkts,trls,algo,_rid,_ns,isRight,dt){{
+    function drawPanel(p,offX,offY,panelW,panelH,wArr,pkts,trls,algo,_rid,_ns,isRight,simDt,animDt){{
       const lbX=offX+panelW*.36, lbY=panelH/2;
       const genX=offX+panelW*.12, genY=panelH/2;
       const wX=offX+panelW*.82;
       const wSpacing=panelH/(numWorkers+1);
+      const moveFactor = Math.min(animDt * 4, 1);
 
       // Update workers
       for(let w of wArr){{
         if(w.busy){{
-          w.busyTimer-=dt;
+          w.busyTimer-=simDt;
           if(w.busyTimer<=0){{
             w.busy=false; w.queue=Math.max(0,w.queue-1);
             if(!isRight){{ completed++; }}
@@ -672,10 +788,10 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
         pk.waitHeat=Math.min((performance.now()-pk.arriveT)/3000,1);
         const r3=Math.round(150+pk.waitHeat*81),gb=Math.round(210-pk.waitHeat*134);
         if(pk.phase==="toLB"){{
-          pk.x=p.lerp(pk.x,lbX,.09); pk.y=p.lerp(pk.y,lbY,.09);
+          pk.x=p.lerp(pk.x,lbX,moveFactor); pk.y=p.lerp(pk.y,lbY,moveFactor);
           if(p.dist(pk.x,pk.y,lbX,lbY)<8) pk.phase="toWorker";
         }} else if(pk.phase==="toWorker"){{
-          pk.x=p.lerp(pk.x,pk.tx,.07); pk.y=p.lerp(pk.y,pk.ty,.07);
+          pk.x=p.lerp(pk.x,pk.tx,moveFactor); pk.y=p.lerp(pk.y,pk.ty,moveFactor);
           if(p.dist(pk.x,pk.y,pk.tx,pk.ty)<8) pk.phase="arrive";
         }} else if(pk.phase==="arrive"){{
           pk.size=p.lerp(pk.size,20,.2); pk.alpha-=12;
@@ -756,6 +872,123 @@ def get_animation_html(lambda_rate, num_workers, mu, algorithm, speed=1.0, pause
       return[231,76,60];
     }}
   }});
+    </script>
+    </body>
+    </html>"""
+
+    # Normalize doubled braces (from previous f-string escaping) back to single braces
+    html = html.replace('{{', '{').replace('}}', '}')
+
+    # Replace Python-template placeholders (avoid using f-strings over large JS blobs)
+    split_class = "on" if split_mode else ""
+    html = html.replace('{algo_label}', algo_label)
+    html = html.replace('{algo2_label}', algo2_label)
+    html = html.replace('{("on" if split_mode else "")}', split_class)
+    html = html.replace('{rho_color}', rho_color)
+    html = html.replace('{rho_sub}', rho_sub)
+    html = html.replace('{js_lambda}', f"{lambda_rate:.4f}")
+    html = html.replace('{js_num_workers}', str(num_workers))
+    html = html.replace('{js_mu}', f"{mu:.4f}")
+    html = html.replace('{js_algorithm}', algorithm_left)
+    html = html.replace('{js_algorithm2}', algo2)
+    html = html.replace('{js_split}', 'true' if split_mode else 'false')
+    html = html.replace('{js_speed}', f"{speed:.4f}")
+    html = html.replace('{js_paused}', init_paused)
+    html = html.replace('{js_reset}', str(reset_js))
+    html = html.replace('{lambda_rate:.1f}', f"{lambda_rate:.1f}")
+    html = html.replace('{num_workers}', str(num_workers))
+    html = html.replace('{mu:.1f}', f"{mu:.1f}")
+    html = html.replace('{rho:.3f}', f"{rho:.3f}")
+
+    return html
+
+
+def get_animation_wrapper_html(lambda_rate=2.0, num_workers=3, mu=1.0,
+                                algorithm_left='round_robin', algorithm_right='least_connection',
+                                speed=1.0, paused=False, split_mode=False, reset_key=0):
+    # Stable wrapper HTML; dynamic config is sent via postMessage from the
+    # Streamlit page to avoid reloading the iframe on every rerun.
+    initial_config = {
+        "lambda": 2.0,
+        "mu": 1.0,
+        "numWorkers": 3,
+        "algorithm": "round_robin",
+        "algorithm2": "least_connection",
+        "splitMode": False,
+        "speed": 1.0,
+        "paused": False,
+        "resetKey": 0,
+    }
+    frame_html = get_animation_html(
+        lambda_rate=2.0,
+        num_workers=3,
+        mu=1.0,
+        algorithm_left="round_robin",
+        algorithm_right="least_connection",
+        speed=1.0,
+        paused=False,
+        split_mode=False,
+        reset_key=0,
+    )
+    frame_src = "data:text/html;base64," + base64.b64encode(frame_html.encode("utf-8")).decode("ascii")
+    initial_config_json = json.dumps(initial_config)
+
+    return f"""<!doctype html>
+<html lang=\"id\">
+<head>
+  <meta charset=\"UTF-8\"/>
+  <style>
+    html, body {{ margin:0; padding:0; width:100%; height:100%; background:#0a0e1a; overflow:hidden; }}
+    body {{ color:#e0e0e0; font-family:'Segoe UI',Arial,sans-serif; }}
+    #wrapper {{ width:100%; height:100%; position:relative; }}
+    #animFrame {{ width:100%; height:100%; border:none; background:#0a0e1a; }}
+  </style>
+</head>
+<body>
+<div id=\"wrapper\">
+  <iframe id=\"animFrame\" title=\"Simulasi Antrian\" src=\"{frame_src}\"></iframe>
+</div>
+<script>
+  const initialConfig = {initial_config_json};
+  const iframe = document.getElementById('animFrame');
+
+  function sendToFrame(message) {{
+    if(iframe && iframe.contentWindow) {{
+      iframe.contentWindow.postMessage(Object.assign({{ source:'wrapper' }}, message), '*');
+    }}
+  }}
+
+  window.addEventListener('message', (event) => {{
+    const msg = event.data;
+    if(!msg || msg.source !== 'page') return;
+    if(msg.type === 'config') {{
+      sendToFrame({{ type:'config', payload: msg.payload }});
+    }} else if(msg.type === 'reset') {{
+      sendToFrame({{ type:'reset' }});
+    }} else if(msg.type === 'pause') {{
+      sendToFrame(msg);
+    }} else if(msg.type === 'init') {{
+      sendToFrame(msg);
+    }}
+  }});
+
+  function sendInit() {{
+    sendToFrame({{ type:'init', payload: initialConfig }});
+    sendToFrame({{ type:'pause', payload: {{ paused: initialConfig.paused }} }});
+  }}
+
+  iframe.addEventListener('load', () => {{
+    sendInit();
+  }});
+
+  window.addEventListener('message', (event) => {{
+    const msg = event.data;
+    if(!msg || msg.source !== 'animFrame') return;
+    if(msg.type === 'ready') {{
+      sendInit();
+    }}
+  }});
+
 </script>
 </body>
 </html>"""
@@ -932,7 +1165,7 @@ with st.sidebar:
     lambda_rate = st.slider("λ — Arrival Rate (req/s)", 0.5, 5.0, 2.0, 0.5)
     mu          = st.slider("μ — Service Rate (req/s)", 0.5, 3.0, 1.0, 0.5)
     num_workers = st.slider("Jumlah Worker (c)", 1, 5, 3)
-    speed       = st.slider("Speed simulasi", 0.5, 3.0, 1.0, 0.5, format="%.1fx")
+    speed       = st.slider("Speed animasi", 0.5, 3.0, 1.0, 0.5, format="%.1fx")
 
     rho = lambda_rate / (num_workers * mu)
     rho_color  = "#4caf50" if rho < 0.7 else "#ff9800" if rho < 1 else "#f44336"
@@ -955,6 +1188,19 @@ with st.sidebar:
 
     st.markdown('<div class="section-header">Kontrol Animasi</div>', unsafe_allow_html=True)
     split_mode = st.toggle("🔀 Split-screen (2 algoritma)", value=False)
+
+    # Jika split mode aktif, berikan pilihan algoritma kanan
+    algorithm_right = None
+    if split_mode:
+      algos = ["round_robin", "random", "least_connection"]
+      fmt = lambda x: {"round_robin":"Round Robin","random":"Random","least_connection":"Least Connection"}[x]
+      # default pilihan kanan berdasarkan mapping lama
+      default_map = {"round_robin": "least_connection", "random": "round_robin", "least_connection": "random"}
+      try:
+        default_idx = algos.index(default_map.get(algorithm, algos[0]))
+      except Exception:
+        default_idx = 0
+      algorithm_right = st.selectbox("Algoritma (kanan)", algos, index=default_idx, format_func=fmt)
 
     if st.button("⏸ Pause" if not st.session_state.sim_paused else "▶ Play",
                  use_container_width=True, key="btn_pause"):
@@ -1045,19 +1291,21 @@ with tab_anim:
         • <b>LIVE STATS (bar atas)</b> = total req, throughput, avg wait, Little's L secara real-time
     </div>""", unsafe_allow_html=True)
 
-    st.components.v1.html(
-        get_animation_html(
-            lambda_rate=lambda_rate,
-            num_workers=num_workers,
-            mu=mu,
-            algorithm=algorithm,
-            speed=speed,
-            paused=st.session_state.sim_paused,
-            split_mode=split_mode,
-        ),
-        height=640,
-        scrolling=False,
+    # Embed the animation HTML directly (avoid nested data: iframes/sandbox issues)
+    frame_html = get_animation_html(
+      lambda_rate=lambda_rate,
+      num_workers=num_workers,
+      mu=mu,
+      algorithm_left=algorithm,
+      algorithm_right=algorithm_right,
+      speed=speed,
+      paused=st.session_state.sim_paused,
+      split_mode=split_mode,
+      reset_key=st.session_state.sim_reset_key,
     )
+    import streamlit.components.v1 as components
+    components.html(frame_html, height=640, scrolling=True)
+
 
 
 # ════════════════════════════════════════════════════════
