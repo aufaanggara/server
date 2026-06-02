@@ -48,9 +48,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; background: #0f0f
 [data-testid="stSidebar"] {
     background: #1a1a1a !important;
     border-right: 1px solid #404040;
+    --primary-color: #82aaff !important;
 }
 [data-testid="stSidebar"] * { color: #e8e8e8 !important; }
-[data-testid="stSidebar"] .stSlider > div > div > div { background: #82aaff !important; }
+[data-testid="stSidebar"] .stSlider {
+    --primary-color: #ff4b4b !important;
+    filter: hue-rotate(220deg) !important;
+}
 
 .metric-card {
     background: #242424;
@@ -506,6 +510,9 @@ function resizeCanvases(){{
   [tlCanvas,iatCanvasL,svcCanvasL,iatCanvasR,svcCanvasR].forEach(c=>{{
     if(!c)return;
     c.width=c.offsetWidth*2;c.height=c.offsetHeight*2;
+    const ctx = c.getContext('2d');
+    ctx.resetTransform();
+    ctx.scale(2, 2);
   }});
 }}
 resizeCanvases();
@@ -569,30 +576,58 @@ function drawTimeline(){{
   tlCtx.fillStyle='#1a1a1a';tlCtx.fillRect(0,0,W,H);
   if(tlHistory.length<2)return;
   const scaleY=u=>H-(u/1.5)*(H*0.85)-H*0.07;
+
+  // Draw Left / Single Timeline Fill
   tlCtx.beginPath();tlCtx.moveTo(0,H);
   tlHistory.forEach((h,i)=>{{
     const x=(i/Math.max(tlHistory.length-1,1))*W;
-    tlCtx.lineTo(x,scaleY(h.util));
+    const u = h.utilL !== undefined ? h.utilL : h.util;
+    tlCtx.lineTo(x,scaleY(u));
   }});
   tlCtx.lineTo(W,H);tlCtx.closePath();
   const grad=tlCtx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'rgba(130,170,255,0.35)');
-  grad.addColorStop(1,'rgba(130,170,255,0.03)');
+  grad.addColorStop(0,'rgba(130,170,255,0.20)');
+  grad.addColorStop(1,'rgba(130,170,255,0.02)');
   tlCtx.fillStyle=grad;tlCtx.fill();
+
+  // Draw Left / Single Line (blue)
   tlCtx.beginPath();
   tlHistory.forEach((h,i)=>{{
     const x=(i/Math.max(tlHistory.length-1,1))*W;
-    i===0?tlCtx.moveTo(x,scaleY(h.util)):tlCtx.lineTo(x,scaleY(h.util));
+    const u = h.utilL !== undefined ? h.utilL : h.util;
+    i===0?tlCtx.moveTo(x,scaleY(u)):tlCtx.lineTo(x,scaleY(u));
   }});
   tlCtx.strokeStyle='#82aaff';tlCtx.lineWidth=1.5;tlCtx.stroke();
+
+  // Draw Right Timeline Line (orange) if split screen
+  if(splitMode){{
+    tlCtx.beginPath();
+    tlHistory.forEach((h,i)=>{{
+      const x=(i/Math.max(tlHistory.length-1,1))*W;
+      const u = h.utilR !== null ? h.utilR : 0;
+      i===0?tlCtx.moveTo(x,scaleY(u)):tlCtx.lineTo(x,scaleY(u));
+    }});
+    tlCtx.strokeStyle='#ffa726';tlCtx.lineWidth=1.5;tlCtx.stroke();
+  }}
+
+  // Draw Threshold Line (ρ = 1)
   const y1=scaleY(1.0);
   tlCtx.setLineDash([4,4]);tlCtx.strokeStyle='rgba(220,38,38,0.6)';tlCtx.lineWidth=1;
   tlCtx.beginPath();tlCtx.moveTo(0,y1);tlCtx.lineTo(W,y1);tlCtx.stroke();
   tlCtx.setLineDash([]);
   tlCtx.fillStyle='rgba(220,38,38,0.7)';tlCtx.font='8px monospace';
   tlCtx.fillText('ρ=1',4,y1-3);
+
+  // Labels
   tlCtx.fillStyle='#606060';tlCtx.font='8px monospace';
-  tlCtx.fillText('UTILISASI TIMELINE',4,H-4);
+  if(splitMode){{
+    tlCtx.fillStyle='#82aaff';
+    tlCtx.fillText('◀ KIRI',4,H-4);
+    tlCtx.fillStyle='#ffa726';
+    tlCtx.fillText('KANAN ▶',50,H-4);
+  }}else{{
+    tlCtx.fillText('UTILISASI TIMELINE',4,H-4);
+  }}
 }}
 
 
@@ -661,8 +696,9 @@ function updateStats(){{
   // ── Periodic updates (histograms, timeline) ──
   if(elapsed-tlLastT>=0.5){{
     tlLastT=elapsed;
-    const util=Math.min(inQ/numWorkers+workers.filter(w=>w.busy).length/numWorkers,2);
-    tlHistory.push({{t:elapsed,util}});
+    const utilL=Math.min(inQ/numWorkers+workers.filter(w=>w.busy).length/numWorkers,2);
+    const utilR=splitMode ? Math.min(workers2.reduce((s,w)=>s+w.queue,0)/numWorkers+workers2.filter(w=>w.busy).length/numWorkers,2) : null;
+    tlHistory.push({{t:elapsed,utilL:utilL,utilR:utilR}});
     if(tlHistory.length>200)tlHistory.shift();
     drawTimeline();
     // Left panel histograms
@@ -1191,13 +1227,9 @@ with st.sidebar:
 
     st.markdown('<div class="section-header">Parameter Stokastik</div>', unsafe_allow_html=True)
     lambda_rate = st.slider("λ — Arrival Rate (req/s)", 0.5, 5.0, 2.0, 0.5)
-    st.markdown('<div style="display:flex;justify-content:space-between;color:#606060;font-size:11px;margin-top:-8px;margin-bottom:10px"><span>0.5</span><span>5.0</span></div>', unsafe_allow_html=True)
     mu          = st.slider("μ — Service Rate (req/s)", 0.5, 3.0, 1.0, 0.5)
-    st.markdown('<div style="display:flex;justify-content:space-between;color:#606060;font-size:11px;margin-top:-8px;margin-bottom:10px"><span>0.5</span><span>3.0</span></div>', unsafe_allow_html=True)
     num_workers = st.slider("Jumlah Worker (c)", 1, 5, 3)
-    st.markdown('<div style="display:flex;justify-content:space-between;color:#606060;font-size:11px;margin-top:-8px;margin-bottom:10px"><span>1</span><span>5</span></div>', unsafe_allow_html=True)
     speed       = st.slider("Speed simulasi", 0.5, 3.0, 1.0, 0.5, format="%.1fx")
-    st.markdown('<div style="display:flex;justify-content:space-between;color:#606060;font-size:11px;margin-top:-8px;margin-bottom:10px"><span>0.5x</span><span>3.0x</span></div>', unsafe_allow_html=True)
 
     rho = lambda_rate / (num_workers * mu)
     rho_color  = "#16a34a" if rho < 0.7 else "#d97706" if rho < 1 else "#dc2626"
@@ -1253,7 +1285,7 @@ with st.sidebar:
         </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
-    run_btn  = st.button("▶ Jalankan & Tampilkan Hasil", use_container_width=True, type="primary")
+    run_btn  = st.button("▶ Jalankan & Tampilkan Hasil", use_container_width=True)
     run_sens = st.button("📊 Analisis Sensitivitas", use_container_width=True)
 
     st.markdown('<div class="section-header">Tentang Model</div>', unsafe_allow_html=True)
@@ -1297,14 +1329,14 @@ with tab_guide:
           <div class="step-num">1</div>
           <div class="step-content">
             <div class="step-title">Atur parameter di sidebar</div>
-            <div class="step-desc">Geser slider λ (arrival rate), μ (service rate), dan c (workers). Perhatikan nilai ρ — jika ρ ≥ 1, sistem tidak stabil dan antrian tidak terbatas.</div>
+            <div class="step-desc">Geser slider λ (arrival rate), μ (service rate), dan c (workers). Perhatikan nilai ρ : jika ρ ≥ 1, sistem tidak stabil dan antrian tidak terbatas.</div>
           </div>
         </div>
         <div class="guide-step">
           <div class="step-num">2</div>
           <div class="step-content">
             <div class="step-title">Lihat animasi real-time di tab Animasi</div>
-            <div class="step-desc">Panel kanan menampilkan histogram distribusi stokastik secara live — IAT dan service time beserta kurva teoritis Exp(λ/μ). Lebar pipa = beban antrian. Warna paket biru→merah = makin lama menunggu.</div>
+            <div class="step-desc">Panel kanan menampilkan histogram distribusi stokastik secara live, IAT dan service time beserta kurva teoritis Exp(λ/μ). Lebar pipa = beban antrian. Warna paket biru→merah = makin lama menunggu.</div>
           </div>
         </div>
         <div class="guide-step">
@@ -1318,7 +1350,7 @@ with tab_guide:
           <div class="step-num">4</div>
           <div class="step-content">
             <div class="step-title">Stress Test: λ naik bertahap otomatis</div>
-            <div class="step-desc">Klik Stress Test — λ naik dari 0.5 → 5.0 req/s (tiap 1 detik). Amati pipa menebal, LED server memanas, dan ρ mendekati kritis secara gradual.</div>
+            <div class="step-desc">Klik Stress Test : λ naik dari 0.5 → 5.0 req/s (tiap 1 detik). Amati pipa menebal, LED server memanas, dan ρ mendekati kritis secara gradual.</div>
           </div>
         </div>
         <div class="guide-step">
@@ -1339,7 +1371,7 @@ with tab_guide:
           <div class="step-num">7</div>
           <div class="step-content">
             <div class="step-title">Analisis Sensitivitas: 50 kombinasi λ × c</div>
-            <div class="step-desc">Klik 📊 Analisis Sensitivitas — 2 heatmap, 2 line chart, tabel validasi Erlang-C, dan CSV export.</div>
+            <div class="step-desc">Klik 📊 Analisis Sensitivitas : 2 heatmap, 2 line chart, tabel validasi Erlang-C, dan CSV export.</div>
           </div>
         </div>
         </div>
