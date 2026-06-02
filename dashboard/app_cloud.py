@@ -31,7 +31,7 @@ def erlang_c_metrics(lam, c, mu):
 # ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Simulasi Antrian Server",
-    page_icon="🖥️",
+    page_icon="⚙️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -467,6 +467,7 @@ html,body{{width:100%;height:100%;overflow:hidden;background:#0f0f0f;
 const lambda0={lambda_rate}, mu={mu}, numWorkers={num_workers};
 const algorithm="{algorithm}", algoLeft="{algoL_js}", algoRight="{algoR_js}";
 const splitMode={split_js};
+let speed={speed};
 let paused=false;
 let stressLambda={stress_lam_js};
 let stressStart=null;
@@ -770,7 +771,7 @@ new p5(function(p){{
 
   p.draw=function(){{
     if(paused)return;
-    const dt=Math.min(p.deltaTime/1000,0.05);
+    const dt=Math.min(p.deltaTime/1000,0.05)*speed;
     lineAnimOffset=(lineAnimOffset+dt*28)%12;
     updateStress(dt);
     p.background(15,15,15);
@@ -911,16 +912,16 @@ new p5(function(p){{
       pk.waitHeat=Math.min((performance.now()-pk.arriveT)/3000,1);
       const r=Math.round(37+pk.waitHeat*183),g=Math.round(138-pk.waitHeat*106),b=Math.round(219-pk.waitHeat*183);
       if(pk.phase==='toLB'){{
-        pk.x=p.lerp(pk.x,lbX,.09);pk.y=p.lerp(pk.y,lbY,.09);
+        pk.x=p.lerp(pk.x,lbX,.09*speed);pk.y=p.lerp(pk.y,lbY,.09*speed);
         if(p.dist(pk.x,pk.y,lbX,lbY)<8)pk.phase='toWorker';
       }}else if(pk.phase==='toWorker'){{
         const wy2=wSpacing*(pk.wid+1);
-        pk.progress=Math.min((pk.progress||0)+0.04,1);
+        pk.progress=Math.min((pk.progress||0)+0.04*speed,1);
         pk.x=p.bezierPoint(lbX+18,lbX+60,wX-60,wX-44,pk.progress);
         pk.y=p.bezierPoint(lbY,lbY,wy2,wy2,pk.progress);
         if(pk.progress>=1)pk.phase='arrive';
       }}else if(pk.phase==='arrive'){{
-        pk.size=p.lerp(pk.size,22,.2);pk.alpha-=12;
+        pk.size=p.lerp(pk.size,22,.2*speed);pk.alpha-=12*speed;
         if(pk.alpha<=0)pk.phase='done';
       }}
       if(pk.phase!=='done'&&pk.alpha>0){{
@@ -1223,7 +1224,7 @@ def generate_pdf_report(params, df, all_results, duration, rho, L, ranked):
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("## 🖥️ Panel Kontrol")
+    st.markdown("## ⚙️ Panel Kontrol")
 
     st.markdown('<div class="section-header">Parameter Stokastik</div>', unsafe_allow_html=True)
     lambda_rate = st.slider("λ — Arrival Rate (req/s)", 0.5, 5.0, 2.0, 0.5)
@@ -1252,7 +1253,7 @@ with st.sidebar:
     duration = st.slider("Durasi Simulasi (detik)", 10, 120, 30, 10)
 
     st.markdown('<div class="section-header">Kontrol Animasi</div>', unsafe_allow_html=True)
-    split_mode = st.toggle("🔀 Split-screen (2 algoritma)", value=False)
+    split_mode = st.toggle("Split-screen (2 algoritma)", value=False)
 
     algo_left  = algorithm
     algo_right = "least_connection"
@@ -1286,7 +1287,7 @@ with st.sidebar:
 
     st.markdown("---")
     run_btn  = st.button("▶ Jalankan & Tampilkan Hasil", use_container_width=True)
-    run_sens = st.button("📊 Analisis Sensitivitas", use_container_width=True)
+    run_sens = st.button("Analisis Sensitivitas", use_container_width=True)
 
     st.markdown('<div class="section-header">Tentang Model</div>', unsafe_allow_html=True)
     st.markdown("""
@@ -1303,16 +1304,16 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN CONTENT
 # ══════════════════════════════════════════════════════════════════════════════
-st.markdown("# 🖥️ Simulasi Stokastik Sistem Antrian Server")
+st.markdown("# Simulasi Stokastik Sistem Antrian Server")
 st.markdown("**Pemodelan & Simulasi Stokastik** — M/M/c Queue | Poisson Arrivals | Exponential Service")
 st.divider()
 
 tab_guide, tab_anim, tab_hasil, tab_compare, tab_sensitivity = st.tabs([
-    "📖 Panduan",
-    "🎬 Animasi",
-    "📊 Hasil Simulasi",
-    "⚖️ Perbandingan Algoritma",
-    "🔬 Analisis Sensitivitas",
+    "Panduan",
+    "Animasi",
+    "Hasil Simulasi",
+    "Perbandingan Algoritma",
+    "Analisis Sensitivitas",
 ])
 
 
@@ -1322,7 +1323,7 @@ tab_guide, tab_anim, tab_hasil, tab_compare, tab_sensitivity = st.tabs([
 with tab_guide:
     col_g1, col_g2 = st.columns([1.2, 1])
     with col_g1:
-        st.markdown("### 🚀 Cara Menggunakan Aplikasi")
+        st.markdown("### Cara Menggunakan Aplikasi")
         st.markdown("""
         <div style="background:#242424;border:1px solid #404040;border-radius:12px;padding:20px 24px">
         <div class="guide-step">
@@ -1371,14 +1372,14 @@ with tab_guide:
           <div class="step-num">7</div>
           <div class="step-content">
             <div class="step-title">Analisis Sensitivitas: 50 kombinasi λ × c</div>
-            <div class="step-desc">Klik 📊 Analisis Sensitivitas : 2 heatmap, 2 line chart, tabel validasi Erlang-C, dan CSV export.</div>
+            <div class="step-desc">Klik Analisis Sensitivitas : 2 heatmap, 2 line chart, tabel validasi Erlang-C, dan CSV export.</div>
           </div>
         </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col_g2:
-        st.markdown("### 📐 Konsep Kunci")
+        st.markdown("### Konsep Kunci")
         st.markdown("""
         <div style="background:#242424;border:1px solid #404040;border-radius:12px;padding:20px 24px;font-size:13px;line-height:1.9;color:#d0d0d0">
         <b style="color:#82aaff">Model M/M/c Queue</b><br>
@@ -1408,7 +1409,7 @@ with tab_guide:
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("### 🎨 Panduan Animasi")
+        st.markdown("### Panduan Animasi")
         st.markdown("""
         <div style="background:#242424;border:1px solid #404040;border-radius:12px;padding:16px 20px;font-size:12px;color:#d0d0d0;line-height:2">
         🔵 <b>Paket biru</b> — request baru<br>
@@ -1417,8 +1418,8 @@ with tab_guide:
         🔴 <b>LED merah server</b> — server busy/panas<br>
         <b>Pipa tebal</b> — antrian panjang<br>
         <b>Dot mengalir di pipa</b> — throughput aktif<br>
-        📊 <b>Panel kanan</b> — histogram IAT & service time<br>
-        📈 <b>Timeline bawah</b> — utilisasi historis
+        <b>Panel kanan</b> — histogram IAT & service time<br>
+        <b>Timeline bawah</b> — utilisasi historis
         </div>
         """, unsafe_allow_html=True)
 
@@ -1522,7 +1523,7 @@ with tab_hasil:
         st.divider()
 
         # ── Kesimpulan kualitas antrian ─────────────────────────────────────
-        st.markdown("### 🎯 Kesimpulan: Kualitas Antrian & Validasi Teori")
+        st.markdown("### Kesimpulan: Kualitas Antrian & Validasi Teori")
         theory = erlang_c_metrics(p_saved["lambda_rate"], p_saved["num_workers"], p_saved["mu"])
 
         def queue_quality_verdict(rho_v, avg_wait_v, avg_svc_v, tput_v, lam_v):
@@ -1555,7 +1556,7 @@ with tab_hasil:
 
         # ── Tabel validasi Erlang-C ──────────────────────────────────────────
         if theory:
-            st.markdown("#### 📐 Perbandingan Simulasi vs Teori Erlang-C M/M/c")
+            st.markdown("#### Perbandingan Simulasi vs Teori Erlang-C M/M/c")
 
             def err_class(e):
                 if e < 5:  return "match-good", f"{e:.1f}% ✓"
@@ -1592,7 +1593,7 @@ with tab_hasil:
             st.markdown(f"<div style='font-size:13px;color:#d0d0d0;margin-top:10px;padding:10px 14px;background:#2a2a2a;border-radius:8px;border:1px solid #404040'>{interp}</div>", unsafe_allow_html=True)
 
             # ── Rekomendasi kapasitas ─────────────────────────────────────────
-            st.markdown("#### 💡 Rekomendasi Kapasitas")
+            st.markdown("#### Rekomendasi Kapasitas")
             c_min = math.ceil(p_saved["lambda_rate"] / p_saved["mu"])
             c_80  = math.ceil(p_saved["lambda_rate"] / (0.80 * p_saved["mu"]))
             c_70  = math.ceil(p_saved["lambda_rate"] / (0.70 * p_saved["mu"]))
@@ -1613,7 +1614,7 @@ with tab_hasil:
         st.divider()
 
         # ── Stabilitas multi-run ─────────────────────────────────────────────
-        st.markdown("### 🔄 Stabilitas Hasil (Multi-Run)")
+        st.markdown("### Stabilitas Hasil (Multi-Run)")
         with st.expander("Lihat analisis stabilitas (5 ulangan)", expanded=False):
             with st.spinner("Menjalankan 5 ulangan..."):
                 stab_data = run_simulation_multi(
@@ -1725,7 +1726,7 @@ with tab_hasil:
         st.divider()
 
         # ── Export ───────────────────────────────────────────────────────────
-        st.markdown("### 📄 Export Laporan")
+        st.markdown("### Export Laporan")
         col_pdf, col_csv = st.columns(2)
         ranked_for_pdf = rank_algorithms(all_results, p_saved["duration"], p_saved["lambda_rate"], rho_saved)
         with col_pdf:
@@ -1763,7 +1764,7 @@ with tab_compare:
         rho_s = p_saved["lambda_rate"] / (p_saved["num_workers"] * p_saved["mu"])
         ranked = rank_algorithms(all_results, dur, p_saved["lambda_rate"], rho_s)
 
-        st.markdown("### 🏆 Ranking Algoritma")
+        st.markdown("### Ranking Algoritma")
         medals = ["🥇","🥈","🥉"]
         badge_styles = ["badge-best","badge-fast","badge-warn"]
         badge_labels = ["TERBAIK","RUNNER-UP","KE-3"]
@@ -1830,7 +1831,7 @@ with tab_compare:
             st.plotly_chart(fig6,use_container_width=True)
 
         # ── Confidence Interval ──────────────────────────────────────────────
-        st.markdown("### 📊 Confidence Interval (95%, n=8 runs)")
+        st.markdown("### Confidence Interval (95%, n=8 runs)")
         st.markdown("""<div class="tab-intro" style="font-size:12px;padding:10px 16px">
             Setiap algoritma dijalankan <b>8 kali</b> dengan seed berbeda.
             Error bar = 95% CI. Semakin pendek = semakin konsisten.
@@ -1884,7 +1885,7 @@ with tab_compare:
             st.dataframe(pd.DataFrame(ci_table_rows),use_container_width=True,hide_index=True)
 
         # ── L vs ρ: teoritis vs empiris ──────────────────────────────────────
-        st.markdown("### 📈 L vs ρ — Erlang-C Teoritis vs Empiris")
+        st.markdown("### L vs ρ — Erlang-C Teoritis vs Empiris")
         st.markdown("""<div class="tab-intro" style="font-size:12px;padding:10px 16px">
             Kurva teoritis dihitung menggunakan formula Erlang-C M/M/c yang akurat.
             Titik hijau = simulasi empiris (n=5 run per titik). Semakin dekat titik ke kurva = semakin valid.
@@ -2028,7 +2029,7 @@ with tab_sensitivity:
         st.plotly_chart(fig_l2,use_container_width=True)
 
         # ── Tabel validasi Erlang-C ──────────────────────────────────────────
-        st.markdown("### 📐 Validasi Erlang-C per Nilai ρ")
+        st.markdown("### Validasi Erlang-C per Nilai ρ")
         st.markdown("""<div class="tab-intro" style="font-size:12px;padding:10px 16px">
             Membandingkan simulasi (n=5 run) dengan teori Erlang-C M/M/c pada berbagai ρ.
             Error &lt;5% = konvergen baik; &gt;15% = perlu durasi lebih panjang.
@@ -2091,7 +2092,7 @@ with tab_sensitivity:
         st.download_button("⬇️ Download Sensitivity CSV",csv_sens,
                            "sensitivity_analysis.csv","text/csv",use_container_width=True)
     else:
-        st.info("Klik **📊 Analisis Sensitivitas** di sidebar untuk memulai.")
+        st.info("Klik **Analisis Sensitivitas** di sidebar untuk memulai.")
         st.markdown("""
         <div style="background:#2a2a2a;border:1px solid #404040;border-radius:12px;padding:20px 24px;margin-top:16px">
             <div style="font-size:11px;color:#a0a0a0;margin-bottom:12px;text-transform:uppercase;
